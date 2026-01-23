@@ -1,0 +1,42 @@
+{
+  "name": "ጥናት ቤት - Learning Platform",
+  "short_name": "ጥናት ቤት",
+  "description": "A private, safe educational platform for Grade 5-8 students",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0A2540",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.jpg",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.jpg",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Student Dashboard",
+      "url": "/dashboard/student",
+      "description": "Access your learning tasks"
+    },
+    {
+      "name": "Tutor Dashboard",
+      "url": "/dashboard/tutor",
+      "description": "Manage student tasks"
+    },
+    {
+      "name": "Parent Dashboard",
+      "url": "/dashboard/parent",
+      "description": "Monitor child's progress"
+    }
+  ]
+}

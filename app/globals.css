@@ -1,0 +1,213 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated color scheme to match educational platform design */
+  --background: oklch(1 0 0); /* Clean White */
+  --foreground: oklch(0.186 0.04 247.86); /* Deep Blue #0A2540 */
+
+  --card: oklch(0.994 0.004 247.86);
+  --card-foreground: oklch(0.186 0.04 247.86);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.186 0.04 247.86);
+
+  --primary: oklch(0.186 0.04 247.86); /* Deep Blue */
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.65 0.15 166.65); /* Emerald Green #10B981 */
+  --secondary-foreground: oklch(1 0 0);
+
+  --muted: oklch(0.96 0.002 247.86);
+  --muted-foreground: oklch(0.556 0.02 247.86);
+
+  --accent: oklch(0.65 0.15 166.65); /* Emerald accent */
+  --accent-foreground: oklch(0.186 0.04 247.86);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+
+  --border: oklch(0.92 0.005 247.86);
+  --input: oklch(0.92 0.005 247.86);
+  --ring: oklch(0.65 0.15 166.65);
+
+  --chart-1: oklch(0.186 0.04 247.86);
+  --chart-2: oklch(0.65 0.15 166.65);
+  --chart-3: oklch(0.75 0.1 200);
+  --chart-4: oklch(0.55 0.12 180);
+  --chart-5: oklch(0.45 0.08 240);
+
+  --radius: 1rem;
+
+  --sidebar: oklch(0.98 0.002 247.86);
+  --sidebar-foreground: oklch(0.186 0.04 247.86);
+  --sidebar-primary: oklch(0.186 0.04 247.86);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.96 0.002 247.86);
+  --sidebar-accent-foreground: oklch(0.186 0.04 247.86);
+  --sidebar-border: oklch(0.92 0.005 247.86);
+  --sidebar-ring: oklch(0.65 0.15 166.65);
+}
+
+.dark {
+  --background: oklch(0.145 0.02 247.86);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.18 0.02 247.86);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.18 0.02 247.86);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.65 0.15 166.65);
+  --primary-foreground: oklch(0.145 0.02 247.86);
+  --secondary: oklch(0.186 0.04 247.86);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.25 0.02 247.86);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.65 0.15 166.65);
+  --accent-foreground: oklch(0.145 0.02 247.86);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.25 0.02 247.86);
+  --input: oklch(0.25 0.02 247.86);
+  --ring: oklch(0.65 0.15 166.65);
+  --chart-1: oklch(0.65 0.15 166.65);
+  --chart-2: oklch(0.75 0.1 200);
+  --chart-3: oklch(0.55 0.12 180);
+  --chart-4: oklch(0.45 0.12 240);
+  --chart-5: oklch(0.85 0.08 160);
+  --sidebar: oklch(0.18 0.02 247.86);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.65 0.15 166.65);
+  --sidebar-primary-foreground: oklch(0.145 0.02 247.86);
+  --sidebar-accent: oklch(0.25 0.02 247.86);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.25 0.02 247.86);
+  --sidebar-ring: oklch(0.65 0.15 166.65);
+}
+
+@theme inline {
+  --font-sans: "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Added smooth scroll and custom animations */
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* Added advanced animations for landing page */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+/* Grid pattern background */
+.bg-grid-pattern {
+  background-image: linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+a,
+.card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced hover effects */
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Glassmorphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
