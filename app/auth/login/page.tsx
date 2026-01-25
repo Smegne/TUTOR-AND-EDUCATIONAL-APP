@@ -107,12 +107,12 @@ export default function LoginPage() {
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border" />
                   </div>
-                  <div className="relative flex justify-center text-xs uppercase">
+                  {/* <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-card px-2 text-muted-foreground">Demo Access</span>
-                  </div>
+                  </div> */}
                 </div>
                 
-                <div className="grid grid-cols-3 gap-2">
+                {/* <div className="grid grid-cols-3 gap-2">
                   <Link href="/dashboard/student" className="w-full">
                     <Button 
                       variant="outline" 
@@ -143,7 +143,7 @@ export default function LoginPage() {
                       Parent Demo
                     </Button>
                   </Link>
-                </div>
+                </div> */}
               </div>
             </form>
 

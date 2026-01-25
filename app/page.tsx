@@ -199,9 +199,9 @@ export default function LandingPage() {
               {/* Animated stats */}
               <div className="grid grid-cols-3 gap-4 pt-8">
                 {[
-                  { value: "500+", label: "Active Tutors" },
-                  { value: "2K+", label: "Happy Students" },
-                  { value: "95%", label: "Success Rate" },
+                  { value: "+", label: "Active Tutors" },
+                  { value: "+", label: "Happy Students" },
+                  { value: "%", label: "Success Rate" },
                 ].map((stat, i) => (
                   <div
                     key={i}
@@ -411,43 +411,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {[
-              {
-                quote:
-                  "My son's study consistency improved dramatically. The simple interface and daily tasks make learning feel achievable instead of overwhelming.",
-                author: "Sarah M.",
-                role: "Parent of Grade 5 Student",
-              },
-              {
-                quote:
-                  "As a tutor, I love how easy it is to create tasks and monitor progress. The platform saves me hours of manual tracking every week.",
-                author: "James K.",
-                role: "Private Tutor",
-              },
-              {
-                quote:
-                  "Finally, a safe learning platform I can trust! No social media distractions, just pure educational focus for my daughter.",
-                author: "Priya R.",
-                role: "Parent of Grade 8 Student",
-              },
-            ].map((testimonial, index) => (
-              <Card key={index} className="border-2">
-                <CardContent className="p-6">
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-secondary text-secondary" />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground mb-4 leading-relaxed italic">"{testimonial.quote}"</p>
-                  <div className="border-t border-border pt-4">
-                    <p className="font-semibold">{testimonial.author}</p>
-                    <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+         
         </div>
       </section>
 
