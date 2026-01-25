@@ -520,7 +520,7 @@ export default function LandingPage() {
                 </li>
               </ul>
             </div>
-            <div>
+            {/* <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
@@ -559,7 +559,7 @@ export default function LandingPage() {
                   </Link>
                 </li>
               </ul>
-            </div>
+            </div> */}
           </div>
           <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
             <p>© 2025 ጥናት ቤት. All rights reserved. Built for better learning outcomes.</p>

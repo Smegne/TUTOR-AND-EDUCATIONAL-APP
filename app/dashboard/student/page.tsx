@@ -168,22 +168,7 @@ export default function StudentDashboard() {
   return (
     <DashboardLayout role="student" studentName={student?.name || user?.firstName}>
       {/* Database Status Banner */}
-      {usingMockData && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
-          <div className="flex items-center justify-center gap-2 text-yellow-700">
-            
-           
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={refreshData}
-              className="h-auto p-1 text-yellow-600 hover:text-yellow-800"
-            >
-            
-            </Button>
-          </div>
-        </div>
-      )}
+    
       
       <div className="p-6 space-y-6">
         {/* Welcome Header */}
