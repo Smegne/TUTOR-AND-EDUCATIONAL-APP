@@ -1,4 +1,4 @@
-// app/api/student-direct/[id]/tasks/route.ts
+// app/api/student-direct/[id]/tasks/route.ts - UPDATED VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 
@@ -36,11 +36,12 @@ export async function GET(
       student = null
     }
 
-    // 2. Get tasks assigned to this student
+    // 2. Get tasks assigned to this student WITH QUESTIONS
     let tasks = []
     try {
       console.log('📋 [STUDENT API] Querying tasks for student:', studentId)
       
+      // Updated query to include questions using GROUP_CONCAT
       const tasksQuery = `SELECT 
         t.id, 
         t.title, 
@@ -60,11 +61,33 @@ export async function GET(
         st.time_spent_minutes,
         st.completed_at,
         st.started_at,
-        tu.name as created_by_name
+        tu.name as created_by_name,
+        -- Get all questions for this task as JSON array
+        COALESCE(
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'id', q.id,
+              'type', q.question_type,
+              'question', q.question_text,
+              'options', q.options,
+              'correctAnswer', q.correct_answer,
+              'points', q.points,
+              'displayOrder', q.display_order
+            )
+          ),
+          JSON_ARRAY()
+        ) as questions
        FROM student_tasks st
        JOIN tasks t ON st.task_id = t.id
        LEFT JOIN tutors tu ON t.created_by = tu.id
+       LEFT JOIN questions q ON t.id = q.task_id
        WHERE st.student_id = ?
+       GROUP BY 
+         t.id, t.title, t.description, t.subject, t.grade_level,
+         t.difficulty, t.estimated_time_minutes, t.note_content,
+         t.video_link, t.images, t.parent_visibility, t.created_at,
+         t.created_by, st.status, st.score, st.time_spent_minutes,
+         st.completed_at, st.started_at, tu.name
        ORDER BY 
          CASE WHEN st.status = 'pending' THEN 1
               WHEN st.status = 'in_progress' THEN 2
@@ -78,7 +101,75 @@ export async function GET(
       
     } catch (error) {
       console.error('❌ [STUDENT API] Tasks query failed:', error)
-      tasks = []
+      // Try a simpler query without GROUP BY as fallback
+      try {
+        console.log('🔄 [STUDENT API] Trying simpler query...')
+        const simpleQuery = `SELECT 
+          t.id, 
+          t.title, 
+          t.description, 
+          t.subject, 
+          t.grade_level,
+          t.difficulty,
+          t.estimated_time_minutes,
+          t.note_content,
+          t.video_link,
+          t.images,
+          t.parent_visibility,
+          t.created_at,
+          t.created_by,
+          st.status as student_task_status,
+          st.score,
+          st.time_spent_minutes,
+          st.completed_at,
+          st.started_at,
+          tu.name as created_by_name
+         FROM student_tasks st
+         JOIN tasks t ON st.task_id = t.id
+         LEFT JOIN tutors tu ON t.created_by = tu.id
+         WHERE st.student_id = ?
+         ORDER BY 
+           CASE WHEN st.status = 'pending' THEN 1
+                WHEN st.status = 'in_progress' THEN 2
+                WHEN st.status = 'completed' THEN 3
+                ELSE 4 END,
+           t.created_at DESC
+         LIMIT 100`
+        
+        tasks = await query<any[]>(simpleQuery, [studentId || student?.id])
+        console.log(`📊 [STUDENT API] Found ${tasks.length} tasks (simple query)`)
+        
+        // Now fetch questions separately for each task
+        for (const task of tasks) {
+          const questionsQuery = `SELECT 
+            id,
+            question_type as type,
+            question_text as question,
+            options,
+            correct_answer as correctAnswer,
+            points,
+            display_order as displayOrder
+           FROM questions 
+           WHERE task_id = ?
+           ORDER BY display_order`
+          
+          const questions = await query<any[]>(questionsQuery, [task.id])
+          
+          // Add questions to task object
+          task.questions = questions.map(q => ({
+            id: q.id?.toString(),
+            type: q.type || 'multiple-choice',
+            question: q.question || '',
+            options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [],
+            correctAnswer: q.correctAnswer,
+            points: q.points || 10,
+            displayOrder: q.displayOrder || 1
+          }))
+        }
+      } catch (fallbackError) {
+        console.error('❌ [STUDENT API] Fallback query also failed:', fallbackError)
+        tasks = []
+      }
     }
 
     // 3. If no tasks found, try to get tasks by grade level
@@ -91,10 +182,30 @@ export async function GET(
           NULL as score,
           NULL as time_spent_minutes,
           NULL as completed_at,
-          tu.name as created_by_name
+          tu.name as created_by_name,
+          -- Get questions for grade-level tasks too
+          COALESCE(
+            JSON_ARRAYAGG(
+              JSON_OBJECT(
+                'id', q.id,
+                'type', q.question_type,
+                'question', q.question_text,
+                'options', q.options,
+                'correctAnswer', q.correct_answer,
+                'points', q.points,
+                'displayOrder', q.display_order
+              )
+            ),
+            JSON_ARRAY()
+          ) as questions
          FROM tasks t
          LEFT JOIN tutors tu ON t.created_by = tu.id
+         LEFT JOIN questions q ON t.id = q.task_id
          WHERE t.grade_level = ?
+         GROUP BY t.id, t.title, t.description, t.subject, t.grade_level,
+           t.difficulty, t.estimated_time_minutes, t.note_content,
+           t.video_link, t.images, t.parent_visibility, t.created_at,
+           t.created_by, tu.name
          ORDER BY t.created_at DESC
          LIMIT 20`
         
@@ -127,6 +238,24 @@ export async function GET(
           images = []
         }
       }
+
+      // Parse questions
+      let questions = []
+      if (task.questions) {
+        try {
+          if (typeof task.questions === 'string') {
+            questions = JSON.parse(task.questions)
+          } else if (Array.isArray(task.questions)) {
+            questions = task.questions
+          }
+        } catch (error) {
+          console.error('Error parsing questions:', error)
+          questions = []
+        }
+      }
+      
+      // Filter out null/empty questions (from LEFT JOIN)
+      questions = questions.filter((q: any) => q.id !== null && q.question)
 
       // Parse courses for student
       let courses = []
@@ -161,7 +290,18 @@ export async function GET(
         score: task.score || null,
         time_spent: task.time_spent_minutes || 0,
         completed_at: task.completed_at?.toISOString(),
-        started_at: task.started_at?.toISOString()
+        started_at: task.started_at?.toISOString(),
+        // Include questions in the task data - just like notes and videos
+        questions: questions.map((q: any) => ({
+          id: q.id?.toString(),
+          type: q.type || 'multiple-choice',
+          question: q.question || '',
+          options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [],
+          correctAnswer: q.correctAnswer,
+          points: q.points || 10,
+          displayOrder: q.displayOrder || 1
+        })),
+        question_count: questions.length
       }
     })
 
@@ -189,6 +329,7 @@ export async function GET(
         totalTasks: formattedTasks.length,
         pending: formattedTasks.filter(t => !t.completed_at).length,
         completed: formattedTasks.filter(t => t.completed_at).length,
+        withQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length,
         averageScore: formattedTasks.filter(t => t.score).length > 0
           ? Math.round(formattedTasks.filter(t => t.score)
               .reduce((sum, t) => sum + (t.score || 0), 0) / 
@@ -199,7 +340,8 @@ export async function GET(
         studentId: studentId,
         foundStudentId: student?.id,
         tasksCount: tasks.length,
-        formattedCount: formattedTasks.length
+        formattedCount: formattedTasks.length,
+        tasksWithQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length
       }
     })
 
@@ -217,6 +359,7 @@ export async function GET(
         totalTasks: 0,
         pending: 0,
         completed: 0,
+        withQuestions: 0,
         averageScore: 0
       },
       message: 'Using mock data due to error'

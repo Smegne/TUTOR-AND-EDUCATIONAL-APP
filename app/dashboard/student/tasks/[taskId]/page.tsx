@@ -10,6 +10,15 @@ import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+interface Task {
+  id: string
+  title: string
+  description?: string
+  created_at?: string
+  due_date?: string
+  status?: 'pending' | 'in_progress' | 'completed'
+}
+
 interface TaskDetail extends Task {
   notes?: {
     id: string

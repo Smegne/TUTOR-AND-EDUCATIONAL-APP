@@ -36,14 +36,20 @@ import {
   BarChart3,
   Sparkles,
   Monitor,
-  PictureInPicture
+  PictureInPicture,
+  CheckSquare,
+  Square,
+  Youtube,
+  ExternalLink
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Task } from "@/app/dashboard/student/tasks/page"
+import Image from "next/image"
 
 interface TaskDetailModalProps {
   task: Task
   studentId: string
+  studentName: string
   open: boolean
   onClose: () => void
 }
@@ -57,9 +63,9 @@ interface Question {
   points?: number
 }
 
-type ModalStep = "overview" | "reading" | "questions" | "complete"
+type ModalStep = "overview" | "reading" | "watching" | "images" | "questions" | "complete"
 
-export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, studentId, studentName, open, onClose }: TaskDetailModalProps) {
   const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState<ModalStep>("overview")
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -67,28 +73,53 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
   const [noteRead, setNoteRead] = useState(false)
+  const [videoWatched, setVideoWatched] = useState(false)
+  const [imagesViewed, setImagesViewed] = useState(false)
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
   const [showAnswers, setShowAnswers] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(true) // Default to fullscreen
-  const [isMinimized, setIsMinimized] = useState(false) // New state for minimized view
+  const [isFullscreen, setIsFullscreen] = useState(true)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [timeSpent, setTimeSpent] = useState(0)
+  const [hasFetchedQuestions, setHasFetchedQuestions] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const lastToggleTime = useRef<number>(0)
 
-  // Handle keyboard shortcuts (Ctrl+F to toggle fullscreen)
+  // Get task resources
+  const hasNote = !!task.note_content
+  const hasVideo = !!task.video_link
+  const hasImages = task.images && Array.isArray(task.images) && task.images.length > 0
+  const hasQuestions = (task.questions && task.questions.length > 0) || questions.length > 0
+  
+  // Determine task type and required steps
+  const taskType = hasNote && hasQuestions ? "both" : hasNote ? "note" : hasQuestions ? "question" : "task"
+  
+  // Define required steps based on task content
+  const getRequiredSteps = () => {
+    const steps: ModalStep[] = ["overview"]
+    
+    if (hasNote) steps.push("reading")
+    if (hasVideo) steps.push("watching")
+    if (hasImages) steps.push("images")
+    if (hasQuestions) steps.push("questions")
+    
+    steps.push("complete")
+    return steps
+  }
+
+  const requiredSteps = getRequiredSteps()
+  const currentStepIndex = requiredSteps.indexOf(currentStep)
+
+  // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Debounce to prevent rapid toggling
     const now = Date.now()
     if (now - lastToggleTime.current < 300) return
     
-    // Ctrl+F or Cmd+F to toggle fullscreen/minimized
     if ((e.ctrlKey || e.metaKey) && e.key === 'f' && open) {
       e.preventDefault()
       lastToggleTime.current = now
       setIsMinimized(!isMinimized)
     }
     
-    // Escape to close modal
     if (e.key === 'Escape' && open) {
       if (isMinimized) {
         setIsMinimized(false)
@@ -98,14 +129,11 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
     }
   }, [open, onClose, isMinimized])
 
-  // Handle Escape key press and keyboard shortcuts
   useEffect(() => {
     if (open) {
       document.addEventListener('keydown', handleKeyDown)
-      
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden'
-      document.body.style.paddingRight = '0px' // Prevent layout shift
+      document.body.style.paddingRight = '0px'
     }
     
     return () => {
@@ -125,9 +153,9 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
     }
   }, [open, currentStep])
 
-  // Load questions when modal opens for question/both tasks
+  // Load questions when modal opens
   useEffect(() => {
-    if (open && task.id && (hasQuestions || taskType === "both")) {
+    if (open && task.id && !hasFetchedQuestions) {
       loadQuestions()
     }
     
@@ -135,47 +163,84 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
     if (open) {
       setCurrentStep("overview")
       setNoteRead(false)
+      setVideoWatched(false)
+      setImagesViewed(false)
       setAnswers({})
       setTimeSpent(0)
-      setIsMinimized(false) // Reset minimized state when reopening
+      setIsMinimized(false)
     }
   }, [open, task.id])
 
-  // Check if task has questions from API or from task object
-  const hasQuestions = (task.questions && task.questions.length > 0) || questions.length > 0
-  const hasNote = !!task.note_content
-  const hasVideo = !!task.video_link
-  const hasImages = !!task.images && task.images.length > 0
-  const taskType = hasNote && hasQuestions ? "both" : hasNote ? "note" : hasQuestions ? "question" : "task"
-
+  // Fetch questions from API
   const loadQuestions = async () => {
+    if (hasFetchedQuestions) return
+    
     setIsLoadingQuestions(true)
     try {
+      console.log("🔍 Loading questions for task:", task.id)
+      
       // First check if questions are already in task object
       if (task.questions && task.questions.length > 0) {
+        console.log("✅ Found questions in task object:", task.questions)
         setQuestions(task.questions as Question[])
+        setHasFetchedQuestions(true)
         return
       }
 
-      // Fetch from API if not in task object
+      // Fetch from API
       const response = await fetch(`/api/student/tasks/${task.id}/questions`)
+      console.log("📡 API Response status:", response.status)
+      
       if (response.ok) {
         const data = await response.json()
-        if (data.success && data.questions) {
+        console.log("📦 API Response data:", data)
+        
+        if (data.success && data.questions && data.questions.length > 0) {
+          console.log("✅ Loaded questions from API:", data.questions)
           setQuestions(data.questions)
+        } else if (data.questions && data.questions.length === 0) {
+          console.log("ℹ️ No questions found in API response")
+          // Check if this task actually has questions in the database
+          // You might want to fetch from a different endpoint
+          await fetchQuestionsFromDatabase()
         }
+      } else {
+        console.error("❌ API Error:", response.status, response.statusText)
+        // Try alternative endpoint
+        await fetchQuestionsFromDatabase()
       }
     } catch (error) {
-      console.error('Error loading questions:', error)
-      // Use sample questions if API fails
+      console.error('❌ Error loading questions:', error)
+      // Use sample questions as fallback
       setQuestions(getSampleQuestions(task.id))
     } finally {
       setIsLoadingQuestions(false)
+      setHasFetchedQuestions(true)
+    }
+  }
+
+  // Alternative method to fetch questions from database
+  const fetchQuestionsFromDatabase = async () => {
+    try {
+      console.log("🔄 Trying alternative question fetch...")
+      // Try direct database query endpoint
+      const response = await fetch(`/api/tasks/${task.id}/questions`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.questions && data.questions.length > 0) {
+          console.log("✅ Loaded questions from alternative endpoint:", data.questions)
+          setQuestions(data.questions)
+        } else {
+          console.log("ℹ️ No questions found in database")
+        }
+      }
+    } catch (error) {
+      console.error("❌ Alternative fetch failed:", error)
     }
   }
 
   const getSampleQuestions = (taskId: string): Question[] => {
-    // Return sample questions based on task subject
     const subject = task.subject.toLowerCase()
     
     if (subject.includes('math')) {
@@ -186,31 +251,6 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
           type: "multiple-choice",
           options: ["95", "105", "115", "125"],
           correctAnswer: "105",
-          points: 5
-        },
-        {
-          id: `${taskId}_2`,
-          question: "Solve for x: 2x + 5 = 15",
-          type: "short-answer",
-          correctAnswer: "5",
-          points: 5
-        }
-      ]
-    } else if (subject.includes('english')) {
-      return [
-        {
-          id: `${taskId}_1`,
-          question: "Which word is a synonym for 'happy'?",
-          type: "multiple-choice",
-          options: ["Sad", "Joyful", "Angry", "Tired"],
-          correctAnswer: "Joyful",
-          points: 5
-        },
-        {
-          id: `${taskId}_2`,
-          question: "The sky is usually blue. (True/False)",
-          type: "true-false",
-          correctAnswer: "true",
           points: 5
         }
       ]
@@ -252,7 +292,6 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
 
   const startTask = async () => {
     try {
-      // Update task status to "in_progress" if not already
       if (task.status === 'not_started') {
         await fetch('/api/student/tasks/update-status', {
           method: 'POST',
@@ -266,15 +305,16 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
         })
       }
 
-      // Determine next step based on task type
-      if (taskType === "note") {
+      // Determine first step based on required resources
+      if (hasNote) {
         setCurrentStep("reading")
-      } else if (taskType === "question") {
+      } else if (hasVideo) {
+        setCurrentStep("watching")
+      } else if (hasImages) {
+        setCurrentStep("images")
+      } else if (hasQuestions) {
         setCurrentStep("questions")
-      } else if (taskType === "both") {
-        setCurrentStep("reading")
       } else {
-        // Generic task type
         handleComplete()
       }
     } catch (error) {
@@ -289,101 +329,184 @@ export function TaskDetailModal({ task, studentId, open, onClose }: TaskDetailMo
 
   const markNoteAsRead = () => {
     setNoteRead(true)
-    if (taskType === "both") {
-      toast({
-        title: "Note Completed",
-        description: "You can now proceed to the questions.",
-      })
-      setCurrentStep("questions")
+    toast({
+      title: "Notes Completed",
+      description: "Great! Now proceed to the next step.",
+    })
+    
+    // Determine next step
+    if (hasVideo) {
+      setCurrentStep("watching")
+    } else if (hasImages) {
+      setCurrentStep("images")
+    } else if (hasQuestions) {
+      // Ensure questions are loaded before proceeding
+      if (questions.length > 0 || hasQuestions) {
+        setCurrentStep("questions")
+      } else {
+        toast({
+          title: "Loading Questions",
+          description: "Please wait while we load the questions...",
+        })
+        loadQuestions().then(() => {
+          setCurrentStep("questions")
+        })
+      }
     } else {
       handleComplete()
     }
   }
-const handleComplete = async () => {
-  try {
-    setIsSubmitting(true)
-    
-    // Calculate time spent
-    const timeSpent = Math.round((Date.now() - startTime) / 60000)
-    
-    // Prepare answers object - IMPORTANT: Use question.id as string key
-    const answersObject: Record<string, string> = {}
-    
-    questions.forEach(question => {
-      const answer = answers[question.id]
-      if (answer && answer.trim()) {
-        answersObject[question.id] = answer.trim()
-      }
-    })
-    
-    console.log('📤 Submitting completion data:', {
-      taskId: task.id,
-      studentId,
-      answersCount: Object.keys(answersObject).length,
-      answersObject,
-      timeSpent,
-      hasQuestions: questions.length > 0
-    })
 
-    // For task 24 with question ID 4, the answersObject should look like:
-    // { "4": "8" } if the student selected "8"
-
-    const response = await fetch('/api/student/tasks/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        taskId: task.id,
-        studentId: studentId,
-        timeSpent: timeSpent,
-        answers: answersObject,
-        completedAt: new Date().toISOString()
-      })
-    })
-
-    const responseText = await response.text()
-    console.log('📥 Raw API response:', responseText)
-
-    let data
-    try {
-      data = JSON.parse(responseText)
-    } catch (parseError) {
-      console.error('Failed to parse response:', parseError)
-      throw new Error('Invalid server response')
-    }
-    
-    if (!response.ok) {
-      console.error('API Error:', data)
-      throw new Error(data.error || data.details || `HTTP ${response.status}`)
-    }
-
-    if (!data.success) {
-      throw new Error(data.error || 'Task completion failed')
-    }
-
-    setCurrentStep("complete")
-
-   // In handleComplete function, after receiving response:
-toast({
-  title: "Task Completed Successfully! 🎉",
-  description: `You scored ${data.data?.percentage || 100}%! ${data.message || ''}`,
-})
-
-    // Close modal after showing completion
-    setTimeout(() => {
-      onClose()
-    }, 2500)
-
-  } catch (error) {
-    console.error('Error completing task:', error)
+  const markVideoAsWatched = () => {
+    setVideoWatched(true)
     toast({
-      title: "Error",
-      description: error instanceof Error ? error.message : "Failed to submit task.",
-      variant: "destructive"
+      title: "Video Completed",
+      description: "Video watched! Proceed to next step.",
     })
-  } finally {
-    setIsSubmitting(false)
+    
+    // Determine next step
+    if (hasImages) {
+      setCurrentStep("images")
+    } else if (hasQuestions) {
+      if (questions.length > 0 || hasQuestions) {
+        setCurrentStep("questions")
+      } else {
+        toast({
+          title: "Loading Questions",
+          description: "Please wait while we load the questions...",
+        })
+        loadQuestions().then(() => {
+          setCurrentStep("questions")
+        })
+      }
+    } else {
+      handleComplete()
+    }
   }
-}
+
+  const markImagesAsViewed = () => {
+    setImagesViewed(true)
+    toast({
+      title: "Images Viewed",
+      description: "Images reviewed! Proceed to next step.",
+    })
+    
+    // Determine next step
+    if (hasQuestions) {
+      if (questions.length > 0 || hasQuestions) {
+        setCurrentStep("questions")
+      } else {
+        toast({
+          title: "Loading Questions",
+          description: "Please wait while we load the questions...",
+        })
+        loadQuestions().then(() => {
+          setCurrentStep("questions")
+        })
+      }
+    } else {
+      handleComplete()
+    }
+  }
+
+  const goToNextStep = () => {
+    const currentIndex = requiredSteps.indexOf(currentStep)
+    if (currentIndex < requiredSteps.length - 1) {
+      setCurrentStep(requiredSteps[currentIndex + 1])
+    }
+  }
+
+  const goToPreviousStep = () => {
+    const currentIndex = requiredSteps.indexOf(currentStep)
+    if (currentIndex > 0) {
+      setCurrentStep(requiredSteps[currentIndex - 1])
+    }
+  }
+
+  const handleComplete = async () => {
+    // Check if there are questions that haven't been answered
+    if (hasQuestions && questions.length > 0 && !allQuestionsAnswered && !showAnswers) {
+      toast({
+        title: "Complete All Questions",
+        description: "Please answer all questions before completing the task.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      
+      const timeSpent = Math.round((Date.now() - startTime) / 60000)
+      const answersObject: Record<string, string> = {}
+      
+      questions.forEach(question => {
+        const answer = answers[question.id]
+        if (answer && answer.trim()) {
+          answersObject[question.id] = answer.trim()
+        }
+      })
+
+      console.log('📤 Submitting completion data:', {
+        taskId: task.id,
+        studentId,
+        answersCount: Object.keys(answersObject).length,
+        timeSpent
+      })
+
+      const response = await fetch('/api/student/tasks/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: task.id,
+          studentId: studentId,
+          timeSpent: timeSpent,
+          answers: answersObject,
+          completedAt: new Date().toISOString()
+        })
+      })
+
+      const responseText = await response.text()
+      console.log('📥 Raw API response:', responseText)
+
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError)
+        throw new Error('Invalid server response')
+      }
+      
+      if (!response.ok) {
+        console.error('API Error:', data)
+        throw new Error(data.error || data.details || `HTTP ${response.status}`)
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Task completion failed')
+      }
+
+      setCurrentStep("complete")
+      toast({
+        title: "Task Completed Successfully! 🎉",
+        description: `You scored ${data.data?.percentage || 100}%! ${data.message || ''}`,
+      })
+
+      setTimeout(() => {
+        onClose()
+      }, 2500)
+
+    } catch (error) {
+      console.error('Error completing task:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to submit task.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: answer }))
@@ -416,36 +539,80 @@ toast({
   }
 
   const renderProgressIndicator = () => {
-    if (taskType === "both" && currentStep !== "complete" && currentStep !== "overview") {
-      return (
-        <div className="flex items-center justify-center gap-4 mb-6 px-4">
-          <div className={`flex items-center gap-2 ${currentStep === "reading" ? "text-primary" : "text-muted-foreground"}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-              noteRead ? "bg-green-500 text-white border-green-500 shadow-lg" :
-              currentStep === "reading" ? "bg-primary text-white border-primary" :
-              "bg-gray-100 text-gray-400 border-gray-200"
-            }`}>
-              {noteRead ? <Check className="h-5 w-5" /> : 1}
-            </div>
-            <span className="text-sm font-medium hidden sm:block">Read Notes</span>
-          </div>
+    if (requiredSteps.length <= 2) return null
+
+    return (
+      <div className="flex items-center justify-center gap-4 mb-6 px-4 overflow-x-auto">
+        {requiredSteps.map((step, index) => {
+          if (step === "overview" || step === "complete") return null
           
-          <div className="w-12 h-0.5 bg-gray-200" />
+          let stepCompleted = false
+          let stepLabel = ""
+          let stepIcon = null
           
-          <div className={`flex items-center gap-2 ${currentStep === "questions" ? "text-primary" : "text-muted-foreground"}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-              Object.keys(answers).length === questions.length ? "bg-green-500 text-white border-green-500 shadow-lg" :
-              currentStep === "questions" ? "bg-primary text-white border-primary" :
-              "bg-gray-100 text-gray-400 border-gray-200"
-            }`}>
-              {Object.keys(answers).length === questions.length ? <Check className="h-5 w-5" /> : 2}
+          switch (step) {
+            case "reading":
+              stepCompleted = noteRead
+              stepLabel = "Read Notes"
+              stepIcon = <FileText className="h-4 w-4" />
+              break
+            case "watching":
+              stepCompleted = videoWatched
+              stepLabel = "Watch Video"
+              stepIcon = <Video className="h-4 w-4" />
+              break
+            case "images":
+              stepCompleted = imagesViewed
+              stepLabel = "View Images"
+              stepIcon = <ImageIcon className="h-4 w-4" />
+              break
+            case "questions":
+              stepCompleted = allQuestionsAnswered
+              stepLabel = "Answer Questions"
+              stepIcon = <HelpCircle className="h-4 w-4" />
+              break
+          }
+          
+          const isCurrent = currentStep === step
+          const isPast = requiredSteps.indexOf(step) < currentStepIndex
+          
+          return (
+            <div key={step} className="flex items-center">
+              <div className={`flex flex-col items-center ${isMinimized ? 'w-20' : 'w-24'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                  stepCompleted ? "bg-green-500 text-white border-green-500 shadow-lg" :
+                  isCurrent ? "bg-primary text-white border-primary" :
+                  isPast ? "bg-primary/20 text-primary border-primary/30" :
+                  "bg-gray-100 text-gray-400 border-gray-200"
+                }`}>
+                  {stepCompleted ? <Check className="h-5 w-5" /> : stepIcon}
+                </div>
+                <span className={`text-xs mt-1 text-center font-medium ${
+                  isCurrent ? "text-primary" : 
+                  stepCompleted ? "text-green-600" : 
+                  "text-muted-foreground"
+                }`}>
+                  {stepLabel}
+                </span>
+              </div>
+              {index < requiredSteps.length - 2 && (
+                <div className={`w-8 h-0.5 ${
+                  isPast ? "bg-primary" : "bg-gray-200"
+                }`} />
+              )}
             </div>
-            <span className="text-sm font-medium hidden sm:block">Answer Questions</span>
-          </div>
-        </div>
-      )
-    }
-    return null
+          )
+        })}
+      </div>
+    )
+  }
+
+  const canProceedToQuestions = () => {
+    // Check if all required previous steps are completed
+    if (hasNote && !noteRead) return false
+    if (hasVideo && !videoWatched) return false
+    if (hasImages && !imagesViewed) return false
+    return true
   }
 
   const calculateScore = () => {
@@ -470,12 +637,37 @@ toast({
     setIsMinimized(!isMinimized)
   }
 
+  // Fix YouTube URL for embedding
+  const getYouTubeEmbedUrl = (url: string) => {
+    if (!url) return null
+    
+    try {
+      // Handle various YouTube URL formats
+      if (url.includes('youtube.com/watch?v=')) {
+        const videoId = url.split('v=')[1]?.split('&')[0]
+        return `https://www.youtube.com/embed/${videoId}`
+      } else if (url.includes('youtu.be/')) {
+        const videoId = url.split('youtu.be/')[1]?.split('?')[0]
+        return `https://www.youtube.com/embed/${videoId}`
+      } else if (url.includes('youtube.com/embed/')) {
+        return url // Already an embed URL
+      }
+      
+      return url
+    } catch (error) {
+      console.error('Error parsing YouTube URL:', error)
+      return null
+    }
+  }
+
+  const youtubeEmbedUrl = task.video_link ? getYouTubeEmbedUrl(task.video_link) : null
+
   // Don't render if modal is closed
   if (!open) return null
 
   return (
     <>
-      {/* Backdrop with blur effect - Always visible */}
+      {/* Backdrop */}
       <div 
         className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-md transition-all duration-300 ${
           open ? 'animate-in fade-in' : 'animate-out fade-out'
@@ -483,7 +675,7 @@ toast({
         onClick={onClose}
       />
       
-      {/* Modal Container - Full Screen */}
+      {/* Modal Container */}
       <div 
         className={`fixed z-50 transition-all duration-300 ease-in-out ${
           isMinimized 
@@ -502,7 +694,7 @@ toast({
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          {/* Modal Header - Always visible */}
+          {/* Modal Header */}
           <div className={`sticky top-0 z-50 flex items-center justify-between ${
             isMinimized ? 'border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-100 dark:border-gray-800'
           } bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-4 ${!isMinimized ? 'px-6' : ''}`}>
@@ -518,15 +710,19 @@ toast({
                   }`}
                 >
                   {currentStep === "overview" ? task.title :
-                   currentStep === "reading" ? "Study Material" :
+                   currentStep === "reading" ? "Study Notes" :
+                   currentStep === "watching" ? "Watch Video" :
+                   currentStep === "images" ? "View Images" :
                    currentStep === "questions" ? "Answer Questions" :
                    "Task Completed"}
                 </h2>
                 {!isMinimized && (
                   <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                     {currentStep === "overview" ? `${getCourseLabel(task.subject)} • Grade ${task.grade_level}` :
-                     currentStep === "reading" ? "Read the material carefully before proceeding" :
-                     currentStep === "questions" ? (isLoadingQuestions ? "Loading questions..." : "Complete all questions to finish") :
+                     currentStep === "reading" ? "Read carefully before proceeding" :
+                     currentStep === "watching" ? "Watch the instructional video" :
+                     currentStep === "images" ? "Review all images" :
+                     currentStep === "questions" ? (isLoadingQuestions ? "Loading questions..." : "Complete all questions") :
                      "Great job! Task completed successfully"}
                   </p>
                 )}
@@ -534,16 +730,16 @@ toast({
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Time Spent Indicator - Only in minimized mode */}
-              {isMinimized && (currentStep === "reading" || currentStep === "questions") && (
+              {/* Time Spent Indicator */}
+              {isMinimized && (currentStep === "reading" || currentStep === "watching" || currentStep === "images" || currentStep === "questions") && (
                 <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-xs">
                   <Clock className="h-3 w-3" />
                   <span>{timeSpent || Math.round((Date.now() - startTime) / 60000)}m</span>
                 </div>
               )}
               
-              {/* Fullscreen Toggle for reading/questions */}
-              {!isMinimized && (currentStep === "reading" || currentStep === "questions") && (
+              {/* Fullscreen Toggle */}
+              {!isMinimized && (currentStep === "reading" || currentStep === "watching" || currentStep === "images" || currentStep === "questions") && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -596,8 +792,8 @@ toast({
           {/* Modal Content Area */}
           <div className={`overflow-y-auto ${
             isMinimized 
-              ? 'h-[calc(600px-64px)]' // Fixed height for minimized mode
-              : 'h-[calc(100vh-64px)]' // Full viewport height minus header
+              ? 'h-[calc(600px-64px)]'
+              : 'h-[calc(100vh-64px)]'
           }`}>
             <div className={`${!isMinimized ? 'p-6' : 'p-4'}`}>
               {/* Keyboard Shortcut Hint */}
@@ -612,6 +808,9 @@ toast({
                   </div>
                 </div>
               )}
+
+              {/* Progress Indicator */}
+              {renderProgressIndicator()}
 
               {/* OVERVIEW STEP */}
               {currentStep === "overview" && (
@@ -656,82 +855,18 @@ toast({
                     </Card>
                   )}
 
-                  {/* Quick Stats Grid - Simplified in minimized mode */}
-                  <div className={`grid gap-3 ${isMinimized ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-3 gap-4'}`}>
-                    <Card className={`${isMinimized ? 'p-3' : ''}`}>
-                      <CardContent className={`${isMinimized ? 'p-0' : 'pt-6'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`${isMinimized ? 'h-8 w-8' : 'h-10 w-10'} rounded-lg bg-primary/10 flex items-center justify-center`}>
-                            {getTaskIcon()}
-                          </div>
-                          <div>
-                            <p className={`${isMinimized ? 'text-xs' : 'text-sm'} text-gray-600 dark:text-gray-400`}>Type</p>
-                            <p className={`${isMinimized ? 'text-sm' : 'text-lg'} font-bold capitalize`}>{taskType}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className={`${isMinimized ? 'p-3' : ''}`}>
-                      <CardContent className={`${isMinimized ? 'p-0' : 'pt-6'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`${isMinimized ? 'h-8 w-8' : 'h-10 w-10'} rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center`}>
-                            <Clock className={`${isMinimized ? 'h-4 w-4' : 'h-5 w-5'} text-amber-600 dark:text-amber-400`} />
-                          </div>
-                          <div>
-                            <p className={`${isMinimized ? 'text-xs' : 'text-sm'} text-gray-600 dark:text-gray-400`}>Time Required</p>
-                            <p className={`${isMinimized ? 'text-sm' : 'text-lg'} font-bold`}>{task.estimated_time_minutes} min</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className={`${isMinimized ? 'p-3' : ''}`}>
-                      <CardContent className={`${isMinimized ? 'p-0' : 'pt-6'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`${isMinimized ? 'h-8 w-8' : 'h-10 w-10'} rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center`}>
-                            <BarChart3 className={`${isMinimized ? 'h-4 w-4' : 'h-5 w-5'} text-green-600 dark:text-green-400`} />
-                          </div>
-                          <div>
-                            <p className={`${isMinimized ? 'text-xs' : 'text-sm'} text-gray-600 dark:text-gray-400`}>Status</p>
-                            <Badge 
-                              variant={
-                                task.status === "completed" ? "secondary" : 
-                                task.status === "in_progress" ? "default" : "outline"
-                              }
-                              className={`${isMinimized ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1'}`}
-                            >
-                              {task.status === "completed" ? "Completed" : 
-                               task.status === "in_progress" ? "In Progress" : "Not Started"}
-                            </Badge>
-                            {!isMinimized && task.status === "completed" && task.score && (
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                Score: <span className="font-bold">{task.score}%</span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Resources Section - Simplified in minimized mode */}
+                  {/* Resources Section */}
                   {(hasNote || hasVideo || hasImages || hasQuestions) && !isMinimized && (
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold flex items-center gap-2">
                         <BookOpen className="h-5 w-5 text-primary" />
-                        Task Resources
+                        Learning Flow
                       </h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {hasNote && (
-                          <Card 
-                            className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
-                            onClick={() => {
-                              const notesTab = document.querySelector('[data-value="notes"]') as HTMLElement
-                              if (notesTab) notesTab.click()
-                            }}
-                          >
+                          <Card className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+                            onClick={() => setCurrentStep("reading")}>
                             <CardContent className="pt-6">
                               <div className="flex items-center gap-3">
                                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/30 flex items-center justify-center">
@@ -740,57 +875,124 @@ toast({
                                 <div className="flex-1">
                                   <h4 className="font-semibold">Study Notes</h4>
                                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    {task.note_content && task.note_content.length > 100 
-                                      ? `${Math.ceil(task.note_content.length / 100)} min read` 
-                                      : "Quick read"}
+                                    Required reading material
                                   </p>
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
                               </div>
-                              <Badge variant="secondary" className="mt-3">Required</Badge>
+                              <div className="flex items-center gap-2 mt-3">
+                                <Badge variant="secondary">Step 1</Badge>
+                                <span className="text-xs text-gray-600 dark:text-gray-400">
+                                  Must complete before next step
+                                </span>
+                              </div>
                             </CardContent>
                           </Card>
                         )}
 
                         {hasVideo && (
-                          <Card 
-                            className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+                          <Card className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
                             onClick={() => {
-                              const resourcesTab = document.querySelector('[data-value="resources"]') as HTMLElement
-                              if (resourcesTab) resourcesTab.click()
-                            }}
-                          >
+                              if (hasNote && !noteRead) {
+                                toast({
+                                  title: "Complete Notes First",
+                                  description: "Please read the notes before watching the video.",
+                                  variant: "destructive"
+                                })
+                              } else {
+                                setCurrentStep("watching")
+                              }
+                            }}>
                             <CardContent className="pt-6">
                               <div className="flex items-center gap-3">
                                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/30 dark:to-red-800/30 flex items-center justify-center">
-                                  <Video className="h-6 w-6 text-red-600 dark:text-red-400" />
+                                  <Youtube className="h-6 w-6 text-red-600 dark:text-red-400" />
                                 </div>
                                 <div className="flex-1">
-                                  <h4 className="font-semibold">Video Tutorial</h4>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Supplemental learning material</p>
+                                  <h4 className="font-semibold">Instructional Video</h4>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Watch and learn from video
+                                  </p>
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
                               </div>
-                              <Badge variant="outline" className="mt-3">Optional</Badge>
+                              <div className="flex items-center gap-2 mt-3">
+                                <Badge variant="secondary">
+                                  {hasNote ? "Step 2" : "Step 1"}
+                                </Badge>
+                                <span className="text-xs text-gray-600 dark:text-gray-400">
+                                  {hasNote ? "Watch after notes" : "Required"}
+                                </span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {hasImages && (
+                          <Card className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+                            onClick={() => {
+                              if ((hasNote && !noteRead) || (hasVideo && !videoWatched)) {
+                                toast({
+                                  title: "Complete Previous Steps",
+                                  description: "Please complete all previous steps before viewing images.",
+                                  variant: "destructive"
+                                })
+                              } else {
+                                setCurrentStep("images")
+                              }
+                            }}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center gap-3">
+                                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-100 to-green-50 dark:from-green-900/30 dark:to-green-800/30 flex items-center justify-center">
+                                  <ImageIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="font-semibold">
+                                    {task.images?.length || 0} Image{task.images?.length !== 1 ? 's' : ''}
+                                  </h4>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Visual aids and diagrams
+                                  </p>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+                              </div>
+                              <div className="flex items-center gap-2 mt-3">
+                                <Badge variant="secondary">
+                                  {hasNote && hasVideo ? "Step 3" : 
+                                   hasNote || hasVideo ? "Step 2" : "Step 1"}
+                                </Badge>
+                                <span className="text-xs text-gray-600 dark:text-gray-400">
+                                  Review all images
+                                </span>
+                              </div>
                             </CardContent>
                           </Card>
                         )}
 
                         {hasQuestions && (
-                          <Card 
-                            className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+                          <Card className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
                             onClick={() => {
-                              if (taskType === "both" && !noteRead) {
+                              if (!canProceedToQuestions()) {
                                 toast({
-                                  title: "Read Notes First",
-                                  description: "Please complete the reading section before answering questions.",
+                                  title: "Complete Previous Steps",
+                                  description: "Please complete all previous steps before answering questions.",
+                                  variant: "destructive"
                                 })
-                                setCurrentStep("reading")
                               } else {
-                                setCurrentStep("questions")
+                                // Ensure questions are loaded
+                                if (questions.length > 0) {
+                                  setCurrentStep("questions")
+                                } else {
+                                  toast({
+                                    title: "Loading Questions",
+                                    description: "Please wait while we load the questions...",
+                                  })
+                                  loadQuestions().then(() => {
+                                    setCurrentStep("questions")
+                                  })
+                                }
                               }
-                            }}
-                          >
+                            }}>
                             <CardContent className="pt-6">
                               <div className="flex items-center gap-3">
                                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 dark:from-purple-900/30 dark:to-purple-800/30 flex items-center justify-center">
@@ -801,14 +1003,14 @@ toast({
                                     {questions.length || task.questions?.length || 0} Question{questions.length !== 1 ? 's' : ''}
                                   </h4>
                                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    {taskType === "both" ? "Complete after reading" : "Assessment"}
+                                    Final assessment
                                   </p>
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
                               </div>
                               <div className="flex items-center gap-2 mt-3">
                                 <Badge variant="secondary">
-                                  {taskType === "both" ? "Step 2" : "Required"}
+                                  {[hasNote, hasVideo, hasImages].filter(Boolean).length + 1} {/* Step number */}
                                 </Badge>
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
                                   Total: {(questions.length || task.questions?.length || 0) * 10} points
@@ -817,41 +1019,9 @@ toast({
                             </CardContent>
                           </Card>
                         )}
-
-                        {hasImages && task.images && (
-                          <Card 
-                            className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
-                            onClick={() => {
-                              const resourcesTab = document.querySelector('[data-value="resources"]') as HTMLElement
-                              if (resourcesTab) resourcesTab.click()
-                              setTimeout(() => {
-                                const imagesTab = document.querySelector('[data-value="images"]') as HTMLElement
-                                if (imagesTab) imagesTab.click()
-                              }, 100)
-                            }}
-                          >
-                            <CardContent className="pt-6">
-                              <div className="flex items-center gap-3">
-                                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-100 to-green-50 dark:from-green-900/30 dark:to-green-800/30 flex items-center justify-center">
-                                  <ImageIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="font-semibold">
-                                    {task.images.length} Visual Aid{task.images.length !== 1 ? 's' : ''}
-                                  </h4>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">Diagrams, charts, and illustrations</p>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
-                              </div>
-                              <Badge variant="outline" className="mt-3">{task.images.length} image{task.images.length !== 1 ? 's' : ''}</Badge>
-                            </CardContent>
-                          </Card>
-                        )}
                       </div>
                     </div>
                   )}
-
-                  {taskType === "both" && renderProgressIndicator()}
 
                   {/* Action Buttons */}
                   <div className={`flex gap-3 ${isMinimized ? 'flex-col' : 'flex-col sm:flex-row'} ${!isMinimized ? 'pt-6 border-t border-gray-100 dark:border-gray-800' : ''}`}>
@@ -878,39 +1048,37 @@ toast({
               {/* READING STEP */}
               {currentStep === "reading" && (
                 <div className="space-y-4 animate-in fade-in duration-300">
-                  {renderProgressIndicator()}
-
-                  {hasNote && (
-                    <Card className={`${isFullscreen && !isMinimized ? 'h-[calc(100vh-200px)]' : ''} ${isMinimized ? 'border-0' : 'border-0 shadow-lg'}`}>
-                      <CardContent className={`${isFullscreen && !isMinimized ? 'h-full overflow-y-auto pt-4' : 'pt-4'} ${isMinimized ? 'p-3' : ''}`}>
-                        {!isMinimized && (
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <BookOpen className="h-5 w-5 text-primary" />
-                              <h3 className="text-lg font-semibold">Study Material</h3>
-                            </div>
+                  <Card className={`${isFullscreen && !isMinimized ? 'h-[calc(100vh-200px)]' : ''} ${isMinimized ? 'border-0' : 'border-0 shadow-lg'}`}>
+                    <CardContent className={`${isFullscreen && !isMinimized ? 'h-full overflow-y-auto pt-4' : 'pt-4'} ${isMinimized ? 'p-3' : ''}`}>
+                      {!isMinimized && (
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">Study Notes</h3>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <Button
-                              variant="default"
+                              variant="outline"
                               size={isMinimized ? "sm" : "default"}
                               onClick={() => setNoteRead(true)}
                               className="gap-2"
                             >
-                              <Eye className="h-4 w-4" />
+                              <CheckSquare className="h-4 w-4" />
                               Mark as Read
                             </Button>
                           </div>
-                        )}
-                        <div className={`prose max-w-none dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-700 dark:prose-p:text-gray-300 ${
-                          isMinimized ? 'prose-sm' : 'prose-lg'
-                        }`}>
-                          <div 
-                            className="leading-relaxed whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: task.note_content || "" }}
-                          />
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                      )}
+                      <div className={`prose max-w-none dark:prose-invert ${
+                        isMinimized ? 'prose-sm' : 'prose-lg'
+                      }`}>
+                        <div 
+                          className="leading-relaxed whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ __html: task.note_content || "" }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
 
                   {/* Action Buttons */}
                   <div className={`flex gap-3 ${isMinimized ? 'flex-col' : 'flex-col sm:flex-row'} ${!isMinimized ? 'pt-4 border-t border-gray-100 dark:border-gray-800' : ''}`}>
@@ -918,7 +1086,7 @@ toast({
                       className={`${isMinimized ? 'h-9 text-sm' : 'h-12 text-base'} flex-1`}
                       onClick={markNoteAsRead}
                     >
-                      {taskType === "both" ? "Continue to Questions" : "Mark as Complete"}
+                      Continue to Next Step
                     </Button>
                     <Button 
                       variant="outline" 
@@ -932,11 +1100,159 @@ toast({
                 </div>
               )}
 
+              {/* WATCHING STEP */}
+              {currentStep === "watching" && (
+                <div className="space-y-4 animate-in fade-in duration-300">
+                  <Card className={`${isMinimized ? 'border-0' : 'border-0 shadow-lg'}`}>
+                    <CardContent className={`${isMinimized ? 'p-3' : 'pt-4'}`}>
+                      {!isMinimized && (
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">Instructional Video</h3>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size={isMinimized ? "sm" : "default"}
+                            onClick={() => setVideoWatched(true)}
+                            className="gap-2"
+                          >
+                            <CheckSquare className="h-4 w-4" />
+                            Mark as Watched
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="space-y-3">
+                        {youtubeEmbedUrl ? (
+                          <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                            <iframe
+                              src={youtubeEmbedUrl}
+                              className="absolute inset-0 w-full h-full"
+                              title="Task video"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
+                            <div className="text-center p-6">
+                              <Youtube className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                              <p className="text-gray-400 mb-2">Video not available in embed format</p>
+                              {task.video_link && (
+                                <a 
+                                  href={task.video_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  Open video in new tab
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Watch the entire video before proceeding</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Action Buttons */}
+                  <div className={`flex gap-3 ${isMinimized ? 'flex-col' : 'flex-col sm:flex-row'} ${!isMinimized ? 'pt-4 border-t border-gray-100 dark:border-gray-800' : ''}`}>
+                    <Button 
+                      className={`${isMinimized ? 'h-9 text-sm' : 'h-12 text-base'} flex-1`}
+                      onClick={markVideoAsWatched}
+                    >
+                      Continue to Next Step
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className={`${isMinimized ? 'h-9 text-sm' : 'h-12'}`}
+                      onClick={goToPreviousStep}
+                    >
+                      <ChevronLeft className={`${isMinimized ? 'h-3 w-3 mr-1' : 'h-5 w-5 mr-2'}`} />
+                      Back
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* IMAGES STEP */}
+              {currentStep === "images" && hasImages && (
+                <div className="space-y-4 animate-in fade-in duration-300">
+                  <Card className={`${isMinimized ? 'border-0' : 'border-0 shadow-lg'}`}>
+                    <CardContent className={`${isMinimized ? 'p-3' : 'pt-4'}`}>
+                      {!isMinimized && (
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <ImageIcon className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">Visual Aids</h3>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size={isMinimized ? "sm" : "default"}
+                            onClick={() => setImagesViewed(true)}
+                            className="gap-2"
+                          >
+                            <CheckSquare className="h-4 w-4" />
+                            Mark as Viewed
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {task.images?.map((image, index) => (
+                            <div key={index} className="relative aspect-video bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                              <img
+                                src={image || "/placeholder.svg"}
+                                alt={`Task image ${index + 1}`}
+                                className="absolute inset-0 w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = "/placeholder.svg"
+                                }}
+                              />
+                              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                Image {index + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Review all images before proceeding</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Action Buttons */}
+                  <div className={`flex gap-3 ${isMinimized ? 'flex-col' : 'flex-col sm:flex-row'} ${!isMinimized ? 'pt-4 border-t border-gray-100 dark:border-gray-800' : ''}`}>
+                    <Button 
+                      className={`${isMinimized ? 'h-9 text-sm' : 'h-12 text-base'} flex-1`}
+                      onClick={markImagesAsViewed}
+                    >
+                      Continue to Next Step
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className={`${isMinimized ? 'h-9 text-sm' : 'h-12'}`}
+                      onClick={goToPreviousStep}
+                    >
+                      <ChevronLeft className={`${isMinimized ? 'h-3 w-3 mr-1' : 'h-5 w-5 mr-2'}`} />
+                      Back
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* QUESTIONS STEP */}
               {currentStep === "questions" && (
                 <div className={`space-y-4 animate-in fade-in duration-300 ${isMinimized ? 'space-y-3' : ''}`}>
-                  {renderProgressIndicator()}
-
                   {isLoadingQuestions ? (
                     <div className="flex flex-col items-center justify-center py-8">
                       <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
@@ -950,13 +1266,41 @@ toast({
                         <p className="text-muted-foreground mb-4 text-sm">
                           This task doesn't have any questions assigned yet.
                         </p>
-                        <Button onClick={handleComplete} size={isMinimized ? "sm" : "default"}>
-                          Mark as Complete
-                        </Button>
+                        <div className="flex gap-3 justify-center">
+                          <Button onClick={handleComplete} size={isMinimized ? "sm" : "default"}>
+                            Mark as Complete
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size={isMinimized ? "sm" : "default"}
+                            onClick={() => {
+                              loadQuestions()
+                              toast({
+                                title: "Retrying",
+                                description: "Attempting to load questions again...",
+                              })
+                            }}
+                          >
+                            Retry Loading
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ) : (
                     <>
+                      {/* Questions Count */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="h-5 w-5 text-primary" />
+                          <h3 className="text-lg font-semibold">
+                            {questions.length} Question{questions.length !== 1 ? 's' : ''}
+                          </h3>
+                        </div>
+                        <Badge variant="outline">
+                          {Object.keys(answers).length}/{questions.length} Answered
+                        </Badge>
+                      </div>
+
                       {/* Progress Bar */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1009,7 +1353,6 @@ toast({
                                         )}
                                       </div>
                                       
-                                      {/* Show correct answer if revealed */}
                                       {showAnswers && question.correctAnswer && (
                                         <div className={`mt-2 p-2 rounded-lg text-sm ${
                                           isCorrect ? 'bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800' : 
@@ -1120,13 +1463,13 @@ toast({
                           ) : showAnswers ? (
                             "Finish Task"
                           ) : (
-                            "Submit Answers"
+                            "Submit Answers & Complete"
                           )}
                         </Button>
                         <Button 
                           variant="outline" 
                           className={`${isMinimized ? 'h-9 text-sm' : 'h-12'}`}
-                          onClick={() => taskType === "both" ? setCurrentStep("reading") : setCurrentStep("overview")}
+                          onClick={goToPreviousStep}
                           disabled={isSubmitting}
                         >
                           <ChevronLeft className={`${isMinimized ? 'h-3 w-3 mr-1' : 'h-5 w-5 mr-2'}`} />
@@ -1159,11 +1502,7 @@ toast({
                   <div>
                     <h3 className={`font-bold mb-2 ${isMinimized ? 'text-lg' : 'text-2xl'}`}>Task Completed!</h3>
                     <p className={`text-gray-600 dark:text-gray-400 ${isMinimized ? 'text-sm' : 'text-lg'}`}>
-                      {taskType === "note" 
-                        ? "You have successfully read and understood the material." 
-                        : taskType === "question" || taskType === "both"
-                        ? "Your answers have been submitted successfully."
-                        : "Task completed successfully!"}
+                      You have successfully completed all required steps. Great job!
                     </p>
                   </div>
 
@@ -1228,31 +1567,11 @@ toast({
                     >
                       Return to Tasks
                     </Button>
-                    {questions.length > 0 && !showAnswers && !isMinimized && (
-                      <Button 
-                        variant="outline" 
-                        className="h-12"
-                        onClick={() => {
-                          setShowAnswers(true)
-                          setCurrentStep("questions")
-                        }}
-                      >
-                        Review Answers
-                      </Button>
-                    )}
                   </div>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Resize Handle for Minimized Mode */}
-          {isMinimized && (
-            <div className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
-                 onDoubleClick={toggleMinimized}
-                 title="Double-click to toggle fullscreen"
-            />
-          )}
         </div>
       </div>
     </>

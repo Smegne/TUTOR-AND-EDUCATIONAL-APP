@@ -1,4 +1,4 @@
-// app/api/students/route.ts - FIXED VERSION
+// app/api/students/route.ts - UPDATED VERSION
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const tutorId = searchParams.get('tutorId');
     const grade = searchParams.get('grade');
-    // Course parameter removed - we're not filtering by course anymore
 
     if (!tutorId) {
       return NextResponse.json(
@@ -18,7 +17,8 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching students for tutor:', { tutorId, grade });
 
-    // SIMPLIFIED: Get students assigned to this tutor, filter by grade only
+    // Get all students for the grade, whether they're assigned to this tutor or not
+    // Use LEFT JOIN instead of INNER JOIN to include all students
     let sql = `
       SELECT 
         s.id,
@@ -28,23 +28,26 @@ export async function GET(request: NextRequest) {
         s.parent_id,
         s.user_id,
         u.email,
-        ts.assigned_at
+        ts.assigned_at,
+        CASE 
+          WHEN ts.tutor_id IS NOT NULL THEN 1 
+          ELSE 0 
+        END as is_assigned
       FROM students s
-      INNER JOIN tutor_students ts ON s.id = ts.student_id
       LEFT JOIN users u ON s.user_id = u.id
-      WHERE ts.tutor_id = ? 
-        AND u.is_active = 1
+      LEFT JOIN tutor_students ts ON s.id = ts.student_id AND ts.tutor_id = ?
+      WHERE (u.is_active = 1 OR u.is_active IS NULL)
     `;
 
     const params: any[] = [tutorId];
 
-    // Filter by grade ONLY (removed course filter)
-    if (grade) {
+    // Filter by grade if provided
+    if (grade && grade !== 'null' && grade !== 'undefined') {
       sql += ` AND s.grade = ?`;
       params.push(parseInt(grade));
     }
 
-    sql += ` ORDER BY s.name ASC`;
+    sql += ` ORDER BY ts.assigned_at DESC, s.name ASC`;
 
     console.log('SQL Query:', sql);
     console.log('SQL Parameters:', params);
@@ -77,7 +80,8 @@ export async function GET(request: NextRequest) {
         courses: courses,
         parentId: student.parent_id,
         email: student.email,
-        assignedAt: student.assigned_at
+        assignedAt: student.assigned_at,
+        isAssigned: student.is_assigned === 1
       };
     });
 

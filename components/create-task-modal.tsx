@@ -112,10 +112,10 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
   // Current available courses based on selected grade
   const availableCourses = getCoursesForGrade(selectedGrade)
 
-  // Fetch students when grade changes
+  // Fetch students when grade changes OR when modal opens
   useEffect(() => {
     const fetchStudentsForGrade = async () => {
-      if (!selectedGrade || !tutorId) {
+      if (!selectedGrade || !tutorId || !open) {
         setAvailableStudents([]);
         return;
       }
@@ -125,18 +125,21 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
         
         console.log('Fetching students for grade:', {
           tutorId,
-          grade: selectedGrade
+          grade: selectedGrade,
+          timestamp: new Date().toISOString()
         });
         
+        // Add cache-busting parameter to prevent stale data
+        const timestamp = new Date().getTime();
         const response = await fetch(
-          `/api/students?tutorId=${tutorId}&grade=${selectedGrade}`
+          `/api/students?tutorId=${tutorId}&grade=${selectedGrade}&_t=${timestamp}`
         );
         
         console.log('Response status:', response.status);
         
         if (response.ok) {
           const students = await response.json();
-          console.log(`Fetched ${students.length} students for grade ${selectedGrade}`);
+          console.log(`Fetched ${students.length} students for grade ${selectedGrade} at ${new Date().toISOString()}`);
           setAvailableStudents(students);
         } else {
           const errorText = await response.text();
@@ -152,7 +155,7 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
     }
 
     fetchStudentsForGrade();
-  }, [selectedGrade, tutorId]);
+  }, [selectedGrade, tutorId, open]);
 
   // Question management functions
   const addQuestion = () => {
@@ -477,7 +480,39 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
     setImageInput("")
     setDuration("30")
     setDifficulty("beginner")
+    // Clear students list to ensure fresh fetch on next open
+    setAvailableStudents([])
   }
+
+  // Function to manually refresh students list
+  const refreshStudents = async () => {
+    if (!selectedGrade || !tutorId) return;
+    
+    setFetchingStudents(true);
+    try {
+      const timestamp = new Date().getTime();
+      const response = await fetch(
+        `/api/students?tutorId=${tutorId}&grade=${selectedGrade}&_t=${timestamp}`
+      );
+      if (response.ok) {
+        const students = await response.json();
+        setAvailableStudents(students);
+        toast({
+          title: "Students Refreshed",
+          description: `Loaded ${students.length} students for grade ${selectedGrade}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing students:', error);
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh students list",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingStudents(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -579,18 +614,39 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
 
           {/* Student Selection */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              {selectedGrade 
-                ? (selectedGrade === 5 || selectedGrade === 6 
-                    ? `ለደረጃ ${selectedGrade} ተማሪዎች ስራ ይሰጡ` 
-                    : `Assign Task To Grade ${selectedGrade} Students`)
-                : (selectedGrade === 5 || selectedGrade === 6 
-                    ? "ለተማሪዎች ስራ ይሰጡ" 
-                    : "Assign Task To Students")
-              } 
-              <span className="text-destructive">*</span>
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                {selectedGrade 
+                  ? (selectedGrade === 5 || selectedGrade === 6 
+                      ? `ለደረጃ ${selectedGrade} ተማሪዎች ስራ ይሰጡ` 
+                      : `Assign Task To Grade ${selectedGrade} Students`)
+                  : (selectedGrade === 5 || selectedGrade === 6 
+                      ? "ለተማሪዎች ስራ ይሰጡ" 
+                      : "Assign Task To Students")
+                } 
+                <span className="text-destructive">*</span>
+              </Label>
+              {selectedGrade && availableStudents.length > 0 && (
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={refreshStudents}
+                  disabled={fetchingStudents || isLoading}
+                  className="h-8 text-xs"
+                >
+                  {fetchingStudents ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    "Refresh List"
+                  )}
+                </Button>
+              )}
+            </div>
             <div className="border border-border rounded-lg p-4 space-y-2 bg-muted/30">
               {fetchingStudents ? (
                 <div className="flex items-center justify-center py-4">
@@ -606,11 +662,29 @@ export function CreateTaskModal({ open, onOpenChange, onTaskCreated, tutorId, tu
                     : "Select grade to view students"}
                 </p>
               ) : availableStudents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {selectedGrade === 5 || selectedGrade === 6 
-                    ? `ለደረጃ ${selectedGrade} ተማሪዎች አልተገኙም` 
-                    : `No students found for grade ${selectedGrade}`}
-                </p>
+                <div className="space-y-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    {selectedGrade === 5 || selectedGrade === 6 
+                      ? `ለደረጃ ${selectedGrade} ተማሪዎች አልተገኙም` 
+                      : `No students found for grade ${selectedGrade}`}
+                  </p>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={refreshStudents}
+                    disabled={fetchingStudents || isLoading}
+                  >
+                    {fetchingStudents ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        {selectedGrade === 5 || selectedGrade === 6 ? "በመጫን ላይ..." : "Loading..."}
+                      </>
+                    ) : (
+                      selectedGrade === 5 || selectedGrade === 6 ? "ተማሪዎችን ዳግም ጫን" : "Refresh Students"
+                    )}
+                  </Button>
+                </div>
               ) : (
                 availableStudents.map((student) => (
                   <div
