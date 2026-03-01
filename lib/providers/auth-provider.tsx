@@ -5,14 +5,17 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { useRouter } from "next/navigation"
 
 interface User {
-  id: string
+  id: string                    // Database ID (parent_1772396028542)
+  userId: string                // User table ID (p_mm86u06x_974nf) ← THIS IS CRITICAL!
   email: string
   role: 'student' | 'tutor' | 'parent'
   firstName: string
   lastName: string
   tutorId?: string
   studentId?: string
-  parentId?: string
+  parentId?: string             // For backward compatibility
+  // Helper properties
+  lookupId: string              // The ID to use for API lookups (same as userId)
 }
 
 interface AuthContextType {
@@ -39,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  // Check auth on mount
   useEffect(() => {
     checkAuth()
   }, [])
@@ -52,16 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Verify token with backend
       const response = await fetch('/api/auth/verify', {
         headers: { Authorization: `Bearer ${token}` }
       })
 
       if (response.ok) {
-        const userData = await response.json()
-        setUser(userData.user)
+        const data = await response.json()
+        // Transform the user data to include both IDs
+        const transformedUser = transformUserData(data.user)
+        setUser(transformedUser)
       } else {
-        // Token invalid, try refresh
         await refreshToken()
       }
     } catch (error) {
@@ -69,6 +71,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // CRITICAL: Transform user data to ensure we have the correct lookup ID
+  const transformUserData = (rawUser: any): User => {
+    // For parent users, we need the user table ID (p_mm86u06x_974nf)
+    if (rawUser.role === 'parent') {
+      // The user ID from the users table (starts with p_)
+      const userTableId = rawUser.userId || rawUser.id;
+      
+      return {
+        // Keep all original data
+        ...rawUser,
+        // Ensure these fields are set correctly
+        id: rawUser.id || userTableId,           // Database record ID
+        userId: userTableId,                       // Users table ID (p_...)
+        parentId: userTableId,                     // For backward compatibility
+        lookupId: userTableId,                     // Helper for API calls
+        // Also include the parents table ID if available
+        parentRecordId: rawUser.parentRecordId
+      };
+    }
+    
+    // For students and tutors
+    return {
+      ...rawUser,
+      lookupId: rawUser.id
+    };
   }
 
   const refreshToken = async () => {
@@ -89,7 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json()
         localStorage.setItem('accessToken', data.accessToken)
         localStorage.setItem('refreshToken', data.refreshToken)
-        setUser(data.user)
+        
+        const transformedUser = transformUserData(data.user)
+        setUser(transformedUser)
       } else {
         logout()
       }
@@ -110,14 +141,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
-        // Store tokens
         localStorage.setItem('accessToken', data.tokens.accessToken)
         localStorage.setItem('refreshToken', data.tokens.refreshToken)
         
-        // Set user
-        setUser(data.user)
+        // Transform the user data
+        const transformedUser = transformUserData(data.user)
+        setUser(transformedUser)
         
-        // Redirect based on role
         router.push(`/dashboard/${data.user.role}`)
         
         return { success: true }
@@ -141,14 +171,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await response.json()
 
       if (response.ok) {
-        // Store tokens
         localStorage.setItem('accessToken', result.tokens.accessToken)
         localStorage.setItem('refreshToken', result.tokens.refreshToken)
         
-        // Set user
-        setUser(result.user)
+        const transformedUser = transformUserData(result.user)
+        setUser(transformedUser)
         
-        // Redirect based on role
         router.push(`/dashboard/${result.user.role}`)
         
         return { success: true }
@@ -162,14 +190,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    // Clear local storage
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
-    
-    // Clear state
     setUser(null)
-    
-    // Redirect to login
     router.push('/auth/login')
   }
 

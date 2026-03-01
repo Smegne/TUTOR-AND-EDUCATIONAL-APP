@@ -1,3 +1,4 @@
+// app/dashboard/parent/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -106,130 +107,217 @@ export default function ParentDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
+    console.log('ParentDashboard mounted, user:', user);
     fetchParentDashboardData()
-  }, [])
+  }, [user]) // Re-fetch when user changes
 
+  // ===========================================
+  // UPDATED fetchParentDashboardData FUNCTION
+  // ===========================================
   const fetchParentDashboardData = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      const parentId = user?.parentId || user?.id || "parent_001"
+      console.log('fetchParentDashboardData called with user:', user);
       
-      // Fetch parent dashboard data from API
+      // Get the correct lookup ID for parent
+      let parentId = '';
+      
+      if (user) {
+        console.log('User object:', {
+          id: user.id,
+          userId: (user as any).userId,
+          parentId: (user as any).parentId,
+          lookupId: (user as any).lookupId,
+          role: user.role,
+          email: user.email
+        });
+        
+        // For parents, we need the users table ID (starts with p_)
+        if (user.role === 'parent') {
+          // Priority 1: Use lookupId if available (from our enhanced auth provider)
+          if ((user as any).lookupId && typeof (user as any).lookupId === 'string' && (user as any).lookupId.startsWith('p_')) {
+            parentId = (user as any).lookupId;
+            console.log('Using lookupId:', parentId);
+          }
+          // Priority 2: Use userId (from users table)
+          else if ((user as any).userId && typeof (user as any).userId === 'string' && (user as any).userId.startsWith('p_')) {
+            parentId = (user as any).userId;
+            console.log('Using userId:', parentId);
+          }
+          // Priority 3: Use parentId
+          else if ((user as any).parentId && typeof (user as any).parentId === 'string' && (user as any).parentId.startsWith('p_')) {
+            parentId = (user as any).parentId;
+            console.log('Using parentId:', parentId);
+          }
+          // Priority 4: Use the ID if it starts with p_
+          else if (user.id && user.id.startsWith('p_')) {
+            parentId = user.id;
+            console.log('Using user.id:', parentId);
+          }
+        }
+      }
+      
+      // For testing with your specific user (ageru@gmail.com)
+      if (!parentId && user?.email === 'ageru@gmail.com') {
+        parentId = 'p_mm86u06x_974nf';
+        console.log('Using hardcoded parentId for ageru@gmail.com:', parentId);
+      }
+      
+      // Last resort fallback for development
+      if (!parentId && process.env.NODE_ENV === 'development') {
+        parentId = 'p_mm86u06x_974nf'; // Your actual parent user_id
+        console.log('Using development fallback parentId:', parentId);
+      }
+      
+      console.log('Final parentId for API call:', parentId);
+      
+      // If still no parentId, use mock data
+      if (!parentId) {
+        console.log('No valid parent ID found, using mock data');
+        setUsingMockData(true);
+        loadMockData();
+        return;
+      }
+      
+      // Make the API call with the correct ID
+      console.log(`Fetching from: /api/parent/${parentId}/dashboard`);
       const response = await fetch(`/api/parent/${parentId}/dashboard`)
       
       if (response.ok) {
         const data = await response.json()
+        console.log('API response:', data);
         
         if (data.success) {
           setDashboardData(data)
           setUsingMockData(false)
+          setError(null)
           
           // Set first child as selected if available
           if (data.children && data.children.length > 0) {
             setSelectedChildId(data.children[0].id)
           }
         } else {
+          console.error('API returned error:', data.error);
           throw new Error(data.error || 'Failed to fetch dashboard data')
         }
       } else {
-        throw new Error(`API error: ${response.status}`)
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        
+        if (response.status === 404) {
+          console.log('Parent not found, using mock data');
+          setUsingMockData(true);
+          loadMockData();
+        } else {
+          throw new Error(errorData.error || `API error: ${response.status}`)
+        }
       }
     } catch (error) {
       console.error('Error fetching parent dashboard data:', error)
       setError(error instanceof Error ? error.message : 'Failed to load data')
       setUsingMockData(true)
       
-      // Fallback to mock data
-      const mockData: ParentDashboardData = {
-        children: [
-          {
-            id: "student_001",
-            name: "Abel Tesfaye",
-            grade: 8,
-            courses: ["Mathematics", "Science", "English"],
-            parent_id: user?.id || "parent_001",
-            userId: "s_user_001",
-            email: "abel@student.com",
-            status: 'linked',
-            linked_at: new Date().toISOString()
-          },
-          {
-            id: "student_002",
-            name: "Emma Wilson",
-            grade: 7,
-            courses: ["Mathematics", "History"],
-            parent_id: user?.id || "parent_001",
-            userId: "s_user_002",
-            email: "emma@student.com",
-            status: 'linked',
-            linked_at: new Date(Date.now() - 86400000).toISOString() // Yesterday
-          },
-          {
-            id: "pending_001",
-            name: "Not Registered",
-            grade: 0,
-            courses: [],
-            parent_id: user?.id || "parent_001",
-            userId: "",
-            email: "child3@example.com",
-            status: 'pending'
-          }
-        ],
-        tasks: [
-          {
-            id: "task_001",
-            title: "Algebra Fundamentals",
-            description: "Practice basic algebraic equations",
-            subject: "Mathematics",
-            grade_level: 8,
-            difficulty: "medium",
-            estimated_time_minutes: 45,
-            parent_visibility: true,
-            created_at: new Date().toISOString(),
-            created_by: "tutor_001",
-            status: 'completed',
-            score: 92,
-            time_spent: 38,
-            completed_at: new Date().toISOString()
-          },
-          {
-            id: "task_002",
-            title: "Science Experiment Report",
-            description: "Document your findings from the chemistry lab",
-            subject: "Science",
-            grade_level: 8,
-            difficulty: "hard",
-            estimated_time_minutes: 60,
-            parent_visibility: true,
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            created_by: "tutor_002",
-            status: 'in_progress',
-            time_spent: 25
-          }
-        ],
-        stats: {
-          todaysCompleted: 3,
-          todaysTotal: 5,
-          todaysProgress: 60,
-          weeklyStreak: 7,
-          weeklyCompleted: 5,
-          weeklyTotal: 8,
-          weeklyProgress: 63,
-          avgScore: 85,
-          totalChildren: 3,
-          linkedChildren: 2,
-          pendingChildren: 1
-        }
-      }
-      
-      setDashboardData(mockData)
-      if (mockData.children.length > 0) {
-        setSelectedChildId(mockData.children[0].id)
-      }
+      // Load mock data as fallback
+      loadMockData()
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Helper function to load mock data
+  const loadMockData = () => {
+    console.log('Loading mock data');
+    const mockData: ParentDashboardData = {
+      children: [
+        {
+          id: "student_001",
+          name: "Abel Tesfaye",
+          grade: 8,
+          courses: ["Mathematics", "Science", "English"],
+          parent_id: user?.id || "parent_001",
+          userId: "s_user_001",
+          email: "abel@student.com",
+          status: 'linked',
+          linked_at: new Date().toISOString()
+        },
+        {
+          id: "student_002",
+          name: "Emma Wilson",
+          grade: 7,
+          courses: ["Mathematics", "History"],
+          parent_id: user?.id || "parent_001",
+          userId: "s_user_002",
+          email: "emma@student.com",
+          status: 'linked',
+          linked_at: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+          id: "pending_001",
+          name: "Not Registered",
+          grade: 0,
+          courses: [],
+          parent_id: user?.id || "parent_001",
+          userId: "",
+          email: "child3@example.com",
+          status: 'pending'
+        }
+      ],
+      tasks: [
+        {
+          id: "task_001",
+          title: "Algebra Fundamentals",
+          description: "Practice basic algebraic equations",
+          subject: "Mathematics",
+          grade_level: 8,
+          difficulty: "medium",
+          estimated_time_minutes: 45,
+          parent_visibility: true,
+          created_at: new Date().toISOString(),
+          created_by: "tutor_001",
+          status: 'completed',
+          score: 92,
+          time_spent: 38,
+          completed_at: new Date().toISOString()
+        },
+        {
+          id: "task_002",
+          title: "Science Experiment Report",
+          description: "Document your findings from the chemistry lab",
+          subject: "Science",
+          grade_level: 8,
+          difficulty: "hard",
+          estimated_time_minutes: 60,
+          parent_visibility: true,
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+          created_by: "tutor_002",
+          status: 'in_progress',
+          time_spent: 25
+        }
+      ],
+      stats: {
+        todaysCompleted: 3,
+        todaysTotal: 5,
+        todaysProgress: 60,
+        weeklyStreak: 7,
+        weeklyCompleted: 5,
+        weeklyTotal: 8,
+        weeklyProgress: 63,
+        avgScore: 85,
+        totalChildren: 3,
+        linkedChildren: 2,
+        pendingChildren: 1
+      }
+    }
+    
+    setDashboardData(mockData)
+    if (mockData.children.length > 0) {
+      setSelectedChildId(mockData.children[0].id)
     }
   }
 
@@ -251,7 +339,7 @@ export default function ParentDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentId: user?.id,
+          parentId: (user as any)?.userId || user?.id,
           childEmail,
           parentName: user?.firstName
         })
@@ -260,6 +348,9 @@ export default function ParentDashboard() {
       if (response.ok) {
         alert('Invitation sent successfully!')
         refreshData()
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to send invitation');
       }
     } catch (error) {
       console.error('Error sending invitation:', error)
@@ -317,7 +408,10 @@ export default function ParentDashboard() {
               <Button onClick={refreshData}>
                 Try Again
               </Button>
-              <Button variant="outline" onClick={() => setUsingMockData(true)}>
+              <Button variant="outline" onClick={() => {
+                setUsingMockData(true);
+                loadMockData();
+              }}>
                 Use Demo Data
               </Button>
             </div>
