@@ -537,28 +537,7 @@ export default function StudentTasksPage() {
 
   return (
     <DashboardLayout role="student" studentName={student?.name || user?.firstName}>
-      {/* Database Status Banner */}
-      {usingMockData && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
-          <div className="flex items-center justify-between gap-2 text-yellow-700">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              <span className="text-sm font-medium">Using demo data</span>
-              <span className="text-xs">(Real data unavailable)</span>
-            </div>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={refreshData}
-              className="h-7 text-yellow-700 border-yellow-300"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-              Retry Connection
-            </Button>
-          </div>
-        </div>
-      )}
+     
 
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -757,29 +736,7 @@ export default function StudentTasksPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Debug info in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 bg-black/90 text-white p-3 rounded-lg text-xs z-50 max-w-xs">
-            <div className="font-bold mb-1">Student Debug:</div>
-            <div className="space-y-1">
-              <div>Student ID: {REAL_STUDENT_ID}</div>
-              <div>Tasks: {tasks.length} ({pendingTasks.length} pending)</div>
-              <div>From DB: {usingMockData ? 'No (demo)' : 'Yes'}</div>
-              <div className="pt-1 border-t border-white/20">
-                <button 
-                  onClick={() => {
-                    console.log("All Tasks:", tasks)
-                    console.log("Student:", student)
-                    console.log("User:", user)
-                  }}
-                  className="text-blue-300 hover:text-blue-200 underline"
-                >
-                  Log Data
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+       
 
         {selectedTask && (
           <TaskDetailModal 

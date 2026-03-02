@@ -352,65 +352,10 @@ export default function ParentCoursesPage() {
     )
   }
 
-  if (error && !usingMockData && children.length === 0) {
-    return (
-      <DashboardLayout role="parent">
-        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <div className="text-center max-w-md space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Unable to Load Courses</h3>
-              <p className="text-muted-foreground mt-2">{error}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Parent ID: {PARENT_ID}
-              </p>
-            </div>
-            <div className="flex gap-3 justify-center pt-4">
-              <Button onClick={refreshData} className="gap-2" disabled={refreshing}>
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Try Again'}
-              </Button>
-              <Button variant="outline" onClick={() => {
-                setChildren(getMockChildrenData())
-                setUsingMockData(true)
-                setError(null)
-                toast.info("Using demo data")
-              }}>
-                Use Demo Data
-              </Button>
-            </div>
-          </div>
-        </div>
-      </DashboardLayout>
-    )
-  }
 
   return (
     <DashboardLayout role="parent">
-      {/* Database Status Banner */}
-      {usingMockData && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
-          <div className="flex items-center justify-between gap-2 text-yellow-700">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              <span className="text-sm font-medium">Using demo data</span>
-              <span className="text-xs">(Real data unavailable)</span>
-            </div>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={refreshData}
-              className="h-7 text-yellow-700 border-yellow-300"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-              Retry Connection
-            </Button>
-          </div>
-        </div>
-      )}
+      
       
       <div className="p-6 md:p-8 space-y-6">
         {/* Header */}
@@ -600,34 +545,16 @@ export default function ParentCoursesPage() {
                             </div>
                           </div>
                           <CardTitle className="mt-4 text-xl">{course.name}</CardTitle>
-                          <CardDescription className="line-clamp-2">
-                            {course.description}
-                          </CardDescription>
+                     
                         </CardHeader>
                         <CardContent className="space-y-4">
                           {/* Progress Bar */}
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">Progress</span>
-                              <span className="font-semibold">{course.completionRate}%</span>
-                            </div>
-                            <Progress value={course.completionRate} className="h-2" />
-                          </div>
+                          
 
-                          {/* Tasks Stats */}
-                          <div className="grid grid-cols-2 gap-2 text-center">
-                            <div className="bg-muted/50 rounded-lg p-2">
-                              <div className="text-lg font-bold">{course.completedTasks}</div>
-                              <div className="text-xs text-muted-foreground">Completed</div>
-                            </div>
-                            <div className="bg-primary/10 rounded-lg p-2">
-                              <div className="text-lg font-bold text-primary">{course.pendingTasks}</div>
-                              <div className="text-xs text-muted-foreground">Pending</div>
-                            </div>
-                          </div>
+                         
 
                           {/* Score and Performance */}
-                          <div className="flex items-center justify-between text-sm">
+                          {/* <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Average Score</span>
                             <div className="flex items-center gap-2">
                               <span className={`font-semibold ${performance.color}`}>
@@ -637,7 +564,7 @@ export default function ParentCoursesPage() {
                                 {performance.text}
                               </Badge>
                             </div>
-                          </div>
+                          </div> */}
 
                           {/* Quick Actions */}
                           <div className="flex gap-2 pt-2">

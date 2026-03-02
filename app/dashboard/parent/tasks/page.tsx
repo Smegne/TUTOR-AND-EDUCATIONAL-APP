@@ -487,67 +487,10 @@ export default function ParentTasksPage() {
     )
   }
 
-  if (error && !usingMockData && tasks.length === 0) {
-    return (
-      <DashboardLayout role="parent">
-        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <div className="text-center max-w-md space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Unable to Load Tasks</h3>
-              <p className="text-muted-foreground mt-2">{error}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Parent ID: {PARENT_ID}
-              </p>
-            </div>
-            <div className="flex gap-3 justify-center pt-4">
-              <Button onClick={refreshData} className="gap-2" disabled={refreshing}>
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Try Again'}
-              </Button>
-              <Button variant="outline" onClick={() => {
-                const mockData = getMockData()
-                setTasks(mockData.tasks)
-                setChildren(mockData.children)
-                setUsingMockData(true)
-                setError(null)
-                toast.info("Using demo data")
-              }}>
-                Use Demo Data
-              </Button>
-            </div>
-          </div>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
+  
   return (
     <DashboardLayout role="parent">
-      {/* Database Status Banner */}
-      {usingMockData && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
-          <div className="flex items-center justify-between gap-2 text-yellow-700">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              <span className="text-sm font-medium">Using demo data</span>
-              <span className="text-xs">(Real data unavailable)</span>
-            </div>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={refreshData}
-              className="h-7 text-yellow-700 border-yellow-300"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-              Retry Connection
-            </Button>
-          </div>
-        </div>
-      )}
+     
 
       <div className="p-6 md:p-8 space-y-6">
         {/* Header */}

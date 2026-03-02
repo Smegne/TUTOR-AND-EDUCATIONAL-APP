@@ -67,14 +67,14 @@ export async function GET(
     
     // Grade 7 & 8 courses (English names)
     const grade78Courses = [
-      { id: 'math', name: 'Mathematics', amharicName: 'ሂሳብ', code: 'MATH' },
-      { id: 'english', name: 'English', amharicName: 'እንግሊዝኛ', code: 'ENG' },
-      { id: 'amharic', name: 'Amharic', amharicName: 'አማርኛ', code: 'AMH' },
+      { id: 'math', name: 'Mathematics', amharicName: 'ሂሳብ', code: 'MATH' ,'bannerImage': '/images/maths.jpg' },
+      { id: 'english', name: 'English', amharicName: 'English', code: 'ENG' },
+      { id: 'amharic', name: 'አማርኛ', amharicName: 'አማርኛ', code: 'AMH' },
       { id: 'general_science', name: 'General Science', amharicName: 'አጠቃላይ ሳይንስ', code: 'SCI' },
       { id: 'citizenship', name: 'Citizenship', amharicName: 'ስነምግባር', code: 'CIT' },
-      { id: 'social_science', name: 'Social Science', amharicName: 'ህብረተሰብ ሳይንስ', code: 'SOC' },
-      { id: 'pva', name: 'PVA', amharicName: 'ስነጥበብ', code: 'PVA' },
-      { id: 'hpe', name: 'HPE', amharicName: 'ስፖርት', code: 'HPE' },
+      { id: 'social_science', name: 'ህብረተሰብ ሳይንስ', amharicName: 'ህብረተሰብ ሳይንስ', code: 'SOC' },
+      { id: 'pva', name: 'ስነ-ጥበብ', amharicName: 'ስነጥበብ', code: 'PVA' },
+      { id: 'hpe', name: 'ስፖርት', amharicName: 'ስፖርት', code: 'HPE' },
       { id: 'it', name: 'IT', amharicName: 'ኢንፎርሜሽን ቴክኖሎጂ', code: 'IT' }
     ];
 

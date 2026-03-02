@@ -276,68 +276,11 @@ export default function StudentCoursesPage() {
     )
   }
 
-  if (error && !usingMockData && courses.length === 0) {
-    return (
-      <DashboardLayout role="student" studentName={user?.firstName}>
-        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <div className="text-center max-w-md space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Unable to Load Courses</h3>
-              <p className="text-muted-foreground mt-2">{error}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Student ID: {STUDENT_ID}
-              </p>
-            </div>
-            <div className="flex gap-3 justify-center pt-4">
-              <Button onClick={refreshData} className="gap-2" disabled={refreshing}>
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Try Again'}
-              </Button>
-              <Button variant="outline" onClick={() => {
-                const mockData = getMockCoursesForGrade(user?.grade || 5)
-                setCourses(mockData.courses)
-                setStudent(mockData.student)
-                setStats(mockData.stats)
-                setUsingMockData(true)
-                setError(null)
-                toast.info("Using demo data")
-              }}>
-                Use Demo Data
-              </Button>
-            </div>
-          </div>
-        </div>
-      </DashboardLayout>
-    )
-  }
+  
 
   return (
     <DashboardLayout role="student" studentName={student?.name || user?.firstName}>
-      {/* Database Status Banner */}
-      {usingMockData && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
-          <div className="flex items-center justify-between gap-2 text-yellow-700">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              <span className="text-sm font-medium">Using demo data</span>
-              <span className="text-xs">(Real data unavailable)</span>
-            </div>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={refreshData}
-              className="h-7 text-yellow-700 border-yellow-300"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-              Retry Connection
-            </Button>
-          </div>
-        </div>
-      )}
+      
 
       <div className="p-6 md:p-8 space-y-6">
         {/* Header */}
@@ -486,43 +429,13 @@ export default function StudentCoursesPage() {
                       </div>
                     </div>
                     <CardTitle className="mt-4 text-xl">{course.name}</CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {course.description}
-                    </CardDescription>
+                    
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Progress Bar */}
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">
-                          {displayLanguage === 'amharic' ? 'እድገት' : 'Progress'}
-                        </span>
-                        <span className="font-semibold">{course.progress}%</span>
-                      </div>
-                      <Progress value={course.progress} className="h-2" />
-                    </div>
+                   
+                   
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-muted/50 rounded-lg p-2">
-                        <div className="text-lg font-bold">{course.totalTasks}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {displayLanguage === 'amharic' ? 'አጠቃላይ' : 'Total'}
-                        </div>
-                      </div>
-                      <div className="bg-secondary/20 rounded-lg p-2">
-                        <div className="text-lg font-bold text-secondary">{course.completedTasks}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {displayLanguage === 'amharic' ? 'የተጠናቀቀ' : 'Done'}
-                        </div>
-                      </div>
-                      <div className="bg-primary/10 rounded-lg p-2">
-                        <div className="text-lg font-bold text-primary">{pendingTasks}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {displayLanguage === 'amharic' ? 'ያልተጠናቀቀ' : 'Left'}
-                        </div>
-                      </div>
-                    </div>
+                   
 
                     {/* Average Score if available */}
                     {course.averageScore > 0 && (
@@ -537,25 +450,7 @@ export default function StudentCoursesPage() {
                     )}
 
                     {/* Action Button */}
-                    <Button 
-                      className="w-full" 
-                      variant={isCompleted ? "secondary" : "default"}
-                      onClick={() => {
-                        window.location.href = course.tasksUrl
-                      }}
-                    >
-                      {isCompleted ? (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          {displayLanguage === 'amharic' ? 'ኮርሱ ተጠናቋል' : 'Course Completed'}
-                        </>
-                      ) : (
-                        <>
-                          <PlayCircle className="h-4 w-4 mr-2" />
-                          {displayLanguage === 'amharic' ? 'ተግባራትን ይመልከቱ' : 'View Tasks'}
-                        </>
-                      )}
-                    </Button>
+                    
                   </CardContent>
                 </Card>
               )
