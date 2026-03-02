@@ -1,233 +1,520 @@
+// app/dashboard/parent/tasks/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, User, CheckCircle, Clock, Loader2, AlertCircle, Database, RefreshCw } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  Calendar, 
+  FileText, 
+  Loader2, 
+  AlertCircle, 
+  Database, 
+  RefreshCw, 
+  Clock, 
+  Award, 
+  CheckCircle, 
+  AlertTriangle, 
+  BookOpen,
+  User,
+  Eye,
+  EyeOff,
+  Filter,
+  Search,
+  ChevronRight,
+  TrendingUp,
+  Users
+} from "lucide-react"
 import { useAuth } from "@/lib/providers/auth-provider"
-
-interface Child {
-  id: string
-  name: string
-  grade: number
-  email?: string
-}
+import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
 
 interface Task {
-  id: number
+  id: string
   title: string
   description: string
   subject: string
   grade_level: number
   difficulty: string
-  status: string
-  score?: number
-  completed_at?: string
-  created_at: string
-  due_date?: string
-  created_by_name?: string
+  estimated_time_minutes: number
+  note_content?: string
+  video_link?: string
+  images?: string[]
   parent_visibility: boolean
+  created_at: string
+  created_by: string
+  created_by_name?: string
+  status: 'pending' | 'in_progress' | 'completed'
+  score?: number
+  time_spent?: number
+  completed_at?: string
+  started_at?: string
+  student_id: string
+  student_name: string
+  student_grade: number
 }
 
-interface ChildTasks {
-  child: Child
-  tasks: Task[]
+interface Child {
+  id: string
+  name: string
+  email: string
+  grade: number
+  courses: string[]
+  status: string
+}
+
+interface Summary {
+  totalChildren: number
+  totalTasks: number
+  completedTasks: number
+  pendingTasks: number
+  inProgressTasks: number
+  averageScore: number
+  tasksByChild: Record<string, number>
 }
 
 export default function ParentTasksPage() {
   const { user } = useAuth()
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [children, setChildren] = useState<Child[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [usingMockData, setUsingMockData] = useState(false)
-  const [childrenTasks, setChildrenTasks] = useState<ChildTasks[]>([])
+  const [refreshing, setRefreshing] = useState(false)
+  const [selectedChild, setSelectedChild] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Get the parent ID from auth - using the same logic as student page
+  const getParentId = useCallback(() => {
+    // Try to get from user object
+    if ((user as any)?.lookupId) return (user as any).lookupId
+    if ((user as any)?.userId) return (user as any).userId
+    if ((user as any)?.parentId) return (user as any).parentId
+    if (user?.id) return user.id
+    
+    // For ageru@gmail.com - hardcoded from your database
+    if (user?.email === 'ageru@gmail.com') {
+      return 'p_mm86u06x_974nf'
+    }
+    
+    // Development fallback
+    return 'p_mm86u06x_974nf'
+  }, [user])
 
-  useEffect(() => {
-    fetchParentTasks()
-  }, [])
+  const PARENT_ID = getParentId()
 
-  const fetchParentTasks = async () => {
+  const fetchParentTasks = useCallback(async (showToast = true) => {
     try {
       setLoading(true)
       setError(null)
       
-      const parentId = user?.parentId || "parent_001"
+      console.log("🎯 [PARENT] Fetching tasks for parent:", PARENT_ID)
+      console.log("👤 [PARENT] Auth user:", user)
       
-      // Fetch parent tasks from API
-      const response = await fetch(`/api/parent/${parentId}/tasks`)
+      // Use the same simple pattern as student page - direct endpoint
+      const response = await fetch(`/api/parent-direct/${PARENT_ID}/tasks`)
+      
+      console.log("📊 [PARENT] API Response status:", response.status)
       
       if (response.ok) {
         const data = await response.json()
+        console.log("✅ [PARENT] API Response:", {
+          success: data.success,
+          tasksCount: data.tasks?.length,
+          childrenCount: data.children?.length
+        })
         
         if (data.success) {
-          setChildrenTasks(data.childrenTasks || [])
-          setUsingMockData(false)
+          // Set children
+          if (data.children) {
+            setChildren(data.children)
+          }
+          
+          // Set tasks
+          const formattedTasks = data.tasks?.map((task: any) => ({
+            ...task,
+            status: task.status || 'pending',
+            score: task.score ? Number(task.score) : undefined,
+            time_spent: task.time_spent_minutes || task.time_spent || 0
+          })) || []
+          
+          setTasks(formattedTasks)
+          setUsingMockData(data.usingMockData || false)
+          
+          if (showToast && formattedTasks.length > 0) {
+            toast.success(`Loaded ${formattedTasks.length} tasks across ${data.children?.length || 0} children`)
+          } else if (showToast && formattedTasks.length === 0) {
+            toast.info("No tasks found for your children")
+          }
+          
+          console.log(`📋 [PARENT] Loaded ${formattedTasks.length} tasks:`, 
+            formattedTasks.map(t => `${t.title} (${t.student_name})`))
+            
         } else {
+          console.error("❌ [PARENT] API error:", data.error)
           throw new Error(data.error || 'Failed to fetch tasks')
         }
       } else {
-        throw new Error(`API error: ${response.status}`)
+        const errorText = await response.text()
+        console.error("❌ [PARENT] HTTP error:", response.status, errorText)
+        throw new Error(`Server error: ${response.status}`)
       }
     } catch (error) {
-      console.error('Error fetching parent tasks:', error)
+      console.error('❌ [PARENT] Fetch error:', error)
       setError(error instanceof Error ? error.message : 'Failed to load tasks')
       setUsingMockData(true)
       
       // Fallback to mock data
-      const mockChildrenTasks: ChildTasks[] = [
-        {
-          child: {
-            id: "student_001",
-            name: "Abel Tesfaye",
-            grade: 5,
-            email: "abel@example.com"
-          },
-          tasks: [
-            {
-              id: 1,
-              title: "Basic Multiplication Practice",
-              description: "Practice multiplying single-digit numbers",
-              subject: "math_g5",
-              grade_level: 5,
-              difficulty: "beginner",
-              status: "completed",
-              score: 92,
-              completed_at: new Date(Date.now() - 43200000).toISOString(),
-              created_at: new Date(Date.now() - 86400000).toISOString(),
-              due_date: new Date(Date.now() + 86400000).toISOString(),
-              created_by_name: "Mr. Johnson",
-              parent_visibility: true
-            },
-            {
-              id: 2,
-              title: "Reading Comprehension",
-              description: "Read and answer questions about a short story",
-              subject: "english_g5",
-              grade_level: 5,
-              difficulty: "intermediate",
-              status: "completed",
-              score: 88,
-              completed_at: new Date(Date.now() - 129600000).toISOString(),
-              created_at: new Date(Date.now() - 172800000).toISOString(),
-              due_date: new Date(Date.now() - 86400000).toISOString(),
-              created_by_name: "Mr. Johnson",
-              parent_visibility: true
-            },
-            {
-              id: 3,
-              title: "Science Experiment Report",
-              description: "Write a report about the plant growth experiment",
-              subject: "science_g5",
-              grade_level: 5,
-              difficulty: "intermediate",
-              status: "in_progress",
-              score: undefined,
-              completed_at: undefined,
-              created_at: new Date(Date.now() - 259200000).toISOString(),
-              due_date: new Date(Date.now() + 172800000).toISOString(),
-              created_by_name: "Ms. Williams",
-              parent_visibility: true
-            }
-          ]
-        }
-      ]
-      setChildrenTasks(mockChildrenTasks)
+      const mockData = getMockData()
+      setTasks(mockData.tasks)
+      setChildren(mockData.children)
+      toast.error("Failed to load tasks. Using demo data.")
     } finally {
       setLoading(false)
+      setRefreshing(false)
+    }
+  }, [PARENT_ID, user])
+
+  useEffect(() => {
+    fetchParentTasks(false)
+  }, [fetchParentTasks])
+
+  const getMockData = () => {
+    return {
+      children: [
+        {
+          id: "student_001",
+          name: "Abel Tesfaye",
+          email: "abel@student.com",
+          grade: 8,
+          courses: ["Mathematics", "Science", "English"],
+          status: "linked"
+        },
+        {
+          id: "student_002",
+          name: "Emma Wilson",
+          email: "emma@student.com",
+          grade: 7,
+          courses: ["Mathematics", "History"],
+          status: "linked"
+        }
+      ],
+      tasks: [
+        {
+          id: "1",
+          title: "Algebra Fundamentals",
+          description: "Practice basic algebraic equations",
+          subject: "math_g8",
+          grade_level: 8,
+          difficulty: "medium",
+          estimated_time_minutes: 45,
+          created_at: new Date().toISOString(),
+          created_by: "tutor_001",
+          created_by_name: "Mr. Johnson",
+          status: "completed",
+          score: 92,
+          time_spent: 38,
+          completed_at: new Date().toISOString(),
+          student_id: "student_001",
+          student_name: "Abel Tesfaye",
+          student_grade: 8,
+          parent_visibility: true
+        },
+        {
+          id: "2",
+          title: "Science Experiment Report",
+          description: "Document your findings from the chemistry lab",
+          subject: "science_g8",
+          grade_level: 8,
+          difficulty: "hard",
+          estimated_time_minutes: 60,
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+          created_by: "tutor_002",
+          created_by_name: "Ms. Davis",
+          status: "in_progress",
+          time_spent: 25,
+          student_id: "student_001",
+          student_name: "Abel Tesfaye",
+          student_grade: 8,
+          parent_visibility: true
+        },
+        {
+          id: "3",
+          title: "Fractions and Decimals",
+          description: "Practice operations with fractions",
+          subject: "math_g7",
+          grade_level: 7,
+          difficulty: "beginner",
+          estimated_time_minutes: 30,
+          created_at: new Date(Date.now() - 172800000).toISOString(),
+          created_by: "tutor_001",
+          created_by_name: "Mr. Johnson",
+          status: "completed",
+          score: 88,
+          time_spent: 28,
+          completed_at: new Date(Date.now() - 86400000).toISOString(),
+          student_id: "student_002",
+          student_name: "Emma Wilson",
+          student_grade: 7,
+          parent_visibility: true
+        }
+      ]
     }
   }
 
   const refreshData = () => {
+    toast.info("Refreshing tasks...")
+    setRefreshing(true)
     fetchParentTasks()
   }
 
+  // Filter tasks based on selected child and search query
+  const filteredTasks = tasks.filter(task => {
+    // Filter by child
+    if (selectedChild !== 'all' && task.student_id !== selectedChild) {
+      return false
+    }
+    
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      return (
+        task.title.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        task.student_name.toLowerCase().includes(query) ||
+        task.subject.toLowerCase().includes(query)
+      )
+    }
+    
+    return true
+  })
+
+  // Group tasks by child
+  const tasksByChild = filteredTasks.reduce((acc, task) => {
+    if (!acc[task.student_id]) {
+      acc[task.student_id] = {
+        childName: task.student_name,
+        childGrade: task.student_grade,
+        tasks: []
+      }
+    }
+    acc[task.student_id].tasks.push(task)
+    return acc
+  }, {} as Record<string, { childName: string; childGrade: number; tasks: Task[] }>)
+
+  // Calculate summary statistics
+  const summary = {
+    totalChildren: children.length,
+    totalTasks: tasks.length,
+    completedTasks: tasks.filter(t => t.status === 'completed').length,
+    inProgressTasks: tasks.filter(t => t.status === 'in_progress').length,
+    pendingTasks: tasks.filter(t => t.status === 'pending').length,
+    averageScore: tasks.filter(t => t.status === 'completed' && t.score).reduce((sum, t) => sum + (t.score || 0), 0) / 
+                 (tasks.filter(t => t.status === 'completed' && t.score).length || 1)
+  }
+
   const getCourseLabel = (subject: string): string => {
-    // Extract course name from subject (e.g., "math_g5" -> "Mathematics")
     const courseMap: Record<string, string> = {
       'math': 'Mathematics',
       'english': 'English',
       'amharic': 'Amharic',
       'science': 'Science',
+      'general_science': 'General Science',
       'social_science': 'Social Science',
       'citizenship': 'Citizenship',
       'pva': 'PVA',
       'hpe': 'HPE',
-      'it': 'IT',
-      'ሂሳብ': 'Mathematics',
-      'እንግሊዝኛ': 'English',
-      'አማርኛ': 'Amharic',
-      'አካባቢ_ሳይንስ': 'Environmental Science',
-      'ስነምግባር': 'Citizenship',
-      'ስነጥበብ': 'Arts',
-      'ስፖርት': 'Sports'
+      'it': 'IT'
     }
 
     const baseSubject = subject.replace(/_(g\d+|g\d+)$/, '').split('_')[0]
     return courseMap[baseSubject] || subject.replace('_', ' ').toUpperCase()
   }
 
-  const getTaskStatusLabel = (status: string): string => {
-    switch (status) {
-      case 'completed':
-        return 'Completed'
-      case 'in_progress':
-        return 'In Progress'
-      case 'not_started':
-        return 'Not Started'
-      default:
-        return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+  const getDifficultyColor = (difficulty: string): string => {
+    switch (difficulty?.toLowerCase()) {
+      case 'beginner': return 'bg-green-100 text-green-800'
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800'
+      case 'advanced': return 'bg-red-100 text-red-800'
+      case 'hard': return 'bg-red-100 text-red-800'
+      case 'medium': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const isTaskOverdue = (task: Task): boolean => {
-    if (task.status === 'completed') return false
-    if (!task.due_date) return false
-    
-    const dueDate = new Date(task.due_date)
-    const now = new Date()
-    return dueDate < now
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800'
+      case 'in_progress': return 'bg-blue-100 text-blue-800'
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
   }
 
-  const getCompletedTasksCount = (tasks: Task[]): number => {
-    return tasks.filter(task => task.status === 'completed').length
+  const formatDate = (dateString: string): string => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true })
+    } catch {
+      return "Unknown date"
+    }
   }
 
-  const getPendingTasksCount = (tasks: Task[]): number => {
-    return tasks.filter(task => task.status !== 'completed').length
+  const TaskCard = ({ task }: { task: Task }) => {
+    const courseLabel = getCourseLabel(task.subject)
+
+    return (
+      <Card className="hover:shadow-lg transition-all hover:border-primary/50">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                {task.title}
+              </CardTitle>
+              <CardDescription>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="text-xs">
+                    {courseLabel}
+                  </Badge>
+                  <span>Grade {task.grade_level}</span>
+                  <span>•</span>
+                  <span className="text-xs text-primary font-medium">{task.student_name}</span>
+                </div>
+              </CardDescription>
+            </div>
+            <Badge 
+              variant="outline"
+              className={getDifficultyColor(task.difficulty)}
+            >
+              {task.difficulty}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {task.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {task.description}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={getStatusColor(task.status)}
+            >
+              {task.status === 'completed' ? (
+                <CheckCircle className="h-3 w-3 mr-1" />
+              ) : task.status === 'in_progress' ? (
+                <Clock className="h-3 w-3 mr-1" />
+              ) : (
+                <Clock className="h-3 w-3 mr-1" />
+              )}
+              {task.status === 'completed' ? 'Completed' : 
+               task.status === 'in_progress' ? 'In Progress' : 'Pending'}
+            </Badge>
+
+            {task.created_by_name && (
+              <span className="text-xs text-muted-foreground">
+                By {task.created_by_name}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>Assigned {formatDate(task.created_at)}</span>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>Est: {task.estimated_time_minutes} min</span>
+            {task.time_spent && task.time_spent > 0 && (
+              <>
+                <span>•</span>
+                <span>Spent: {task.time_spent} min</span>
+              </>
+            )}
+          </div>
+
+          {task.status === 'completed' && task.score !== undefined && (
+            <div className="bg-secondary/20 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-secondary" />
+                  <span className="text-sm text-muted-foreground">Score</span>
+                </div>
+                <span className="font-bold text-secondary text-lg">
+                  {task.score}%
+                </span>
+              </div>
+              {task.completed_at && (
+                <div className="flex items-center justify-between text-sm mt-2">
+                  <span className="text-muted-foreground">Completed</span>
+                  <span className="font-medium">{formatDate(task.completed_at)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!task.parent_visibility && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 flex items-center gap-1">
+              <EyeOff className="h-3 w-3" />
+              Hidden from parent view
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
   }
 
-  const getAvgScore = (tasks: Task[]): number => {
-    const completedTasks = tasks.filter(task => task.status === 'completed' && task.score)
-    if (completedTasks.length === 0) return 0
-    return Math.round(completedTasks.reduce((sum, task) => sum + (task.score || 0), 0) / completedTasks.length)
-  }
-
-  if (loading) {
+  if (loading && tasks.length === 0) {
     return (
       <DashboardLayout role="parent">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading your children's tasks...</p>
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+            <div>
+              <p className="text-lg font-medium">Loading your children's tasks...</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Parent ID: {PARENT_ID}
+              </p>
+            </div>
           </div>
         </div>
       </DashboardLayout>
     )
   }
 
-  if (error && !usingMockData) {
+  if (error && !usingMockData && tasks.length === 0) {
     return (
       <DashboardLayout role="parent">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center max-w-md">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Unable to Load Tasks</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={refreshData}>
-                Try Again
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <div className="text-center max-w-md space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Unable to Load Tasks</h3>
+              <p className="text-muted-foreground mt-2">{error}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Parent ID: {PARENT_ID}
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center pt-4">
+              <Button onClick={refreshData} className="gap-2" disabled={refreshing}>
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Try Again'}
               </Button>
-              <Button variant="outline" onClick={() => setUsingMockData(true)}>
+              <Button variant="outline" onClick={() => {
+                const mockData = getMockData()
+                setTasks(mockData.tasks)
+                setChildren(mockData.children)
+                setUsingMockData(true)
+                setError(null)
+                toast.info("Using demo data")
+              }}>
                 Use Demo Data
               </Button>
             </div>
@@ -245,240 +532,220 @@ export default function ParentTasksPage() {
           <div className="flex items-center justify-between gap-2 text-yellow-700">
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4" />
-              <p className="text-sm font-medium">Using demo data</p>
+              <span className="text-sm font-medium">Using demo data</span>
+              <span className="text-xs">(Real data unavailable)</span>
             </div>
             <Button 
-              variant="ghost" 
               size="sm" 
+              variant="outline" 
               onClick={refreshData}
-              className="h-auto p-1 text-yellow-600 hover:text-yellow-800"
+              className="h-7 text-yellow-700 border-yellow-300"
+              disabled={refreshing}
             >
-              <RefreshCw className="h-3 w-3 mr-1" />
+              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
               Retry Connection
             </Button>
           </div>
         </div>
       )}
-      
+
       <div className="p-6 md:p-8 space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-balance">Children's Tasks</h1>
-            <p className="text-muted-foreground">Monitor task completion and progress</p>
+            <p className="text-muted-foreground">
+              Monitor task completion and learning progress across all your children
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Parent ID: {PARENT_ID} • {children.length} child{children.length !== 1 ? 'ren' : ''}
+            </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={refreshData}
-            className="gap-2"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </Button>
+          
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-muted-foreground">
+              {tasks.length} total task{tasks.length !== 1 ? 's' : ''}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={refreshData}
+              className="gap-2"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
 
-        {childrenTasks.length === 0 ? (
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-blue-700 mb-1">Total Tasks</div>
+                  <div className="text-2xl font-bold text-blue-900">{summary.totalTasks}</div>
+                </div>
+                <BookOpen className="h-8 w-8 text-blue-400" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-green-50 border-green-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-green-700 mb-1">Completed</div>
+                  <div className="text-2xl font-bold text-green-900">{summary.completedTasks}</div>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-400" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-orange-50 border-orange-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-orange-700 mb-1">In Progress</div>
+                  <div className="text-2xl font-bold text-orange-900">{summary.inProgressTasks}</div>
+                </div>
+                <Clock className="h-8 w-8 text-orange-400" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-yellow-700 mb-1">Pending</div>
+                  <div className="text-2xl font-bold text-yellow-900">{summary.pendingTasks}</div>
+                </div>
+                <AlertCircle className="h-8 w-8 text-yellow-400" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-purple-50 border-purple-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-purple-700 mb-1">Avg. Score</div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    {Math.round(summary.averageScore)}%
+                  </div>
+                </div>
+                <Award className="h-8 w-8 text-purple-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-md">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Filters:</span>
+              </div>
+              
+              <select 
+                className="border rounded-md px-3 py-2 text-sm"
+                value={selectedChild}
+                onChange={(e) => setSelectedChild(e.target.value)}
+              >
+                <option value="all">All Children</option>
+                {children.map(child => (
+                  <option key={child.id} value={child.id}>
+                    {child.name} (Grade {child.grade})
+                  </option>
+                ))}
+              </select>
+
+              
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tasks by Child */}
+        {Object.keys(tasksByChild).length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <User className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No children tasks available</h3>
+              <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No tasks found</h3>
               <p className="text-muted-foreground text-center mb-4">
-                Your children's tasks will appear here once tutors make them visible to parents.
+                {searchQuery || selectedChild !== 'all' 
+                  ? "No tasks match your filters. Try adjusting your search criteria."
+                  : "Your children don't have any visible tasks yet."}
               </p>
-              <Button 
-                variant="outline" 
-                onClick={refreshData}
-              >
-                Check Again
-              </Button>
+              {(searchQuery || selectedChild !== 'all') && (
+                <Button variant="outline" onClick={() => {
+                  setSelectedChild('all')
+                  setSearchQuery('')
+                }}>
+                  Clear Filters
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
-          childrenTasks.map((childTasks) => {
-            const completedCount = getCompletedTasksCount(childTasks.tasks)
-            const pendingCount = getPendingTasksCount(childTasks.tasks)
-            const avgScore = getAvgScore(childTasks.tasks)
-            const overdueCount = childTasks.tasks.filter(task => isTaskOverdue(task)).length
-
-            return (
-              <div key={childTasks.child.id} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-secondary/20 p-2 rounded-full">
-                      <User className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold">{childTasks.child.name}</h2>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span>Grade {childTasks.child.grade}</span>
-                        {childTasks.child.email && (
-                          <>
-                            <span>•</span>
-                            <span>{childTasks.child.email}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+          <div className="space-y-8">
+            {Object.entries(tasksByChild).map(([childId, { childName, childGrade, tasks }]) => (
+              <div key={childId} className="space-y-4">
+                {/* Child Header */}
+                <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-lg">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Performance</div>
-                      <div className="text-lg font-bold text-secondary">{avgScore}% avg</div>
-                    </div>
-                    <Badge variant="outline">
-                      {completedCount} completed
-                    </Badge>
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold">{childName}</h2>
+                    <p className="text-sm text-muted-foreground">Grade {childGrade}</p>
                   </div>
+                  <Badge variant="outline" className="bg-primary/5">
+                    {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+                  </Badge>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 mb-4">
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-secondary">{completedCount}</div>
-                        <div className="text-sm text-muted-foreground">Completed</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-primary">{pendingCount}</div>
-                        <div className="text-sm text-muted-foreground">Pending</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-destructive">{overdueCount}</div>
-                        <div className="text-sm text-muted-foreground">Overdue</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold">{childTasks.tasks.length}</div>
-                        <div className="text-sm text-muted-foreground">Total Tasks</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
+                {/* Tasks Grid for this Child */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {childTasks.tasks.map((task) => {
-                    const isOverdue = isTaskOverdue(task)
-                    const isCompleted = task.status === 'completed'
-                    const courseLabel = getCourseLabel(task.subject)
-
-                    return (
-                      <Card key={task.id} className="hover:shadow-md transition-shadow hover:border-primary/50">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <CardTitle className="text-lg">{task.title}</CardTitle>
-                              <CardDescription>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span>{courseLabel}</span>
-                                  <span>•</span>
-                                  <span>Grade {task.grade_level}</span>
-                                </div>
-                              </CardDescription>
-                            </div>
-                            <Badge
-                              variant={
-                                isCompleted ? "secondary" : 
-                                isOverdue ? "destructive" : 
-                                "default"
-                              }
-                              className="gap-1"
-                            >
-                              {isCompleted ? (
-                                <CheckCircle className="h-3 w-3" />
-                              ) : (
-                                <Clock className="h-3 w-3" />
-                              )}
-                              {getTaskStatusLabel(task.status)}
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {task.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {task.description}
-                            </p>
-                          )}
-
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>
-                              {task.due_date ? (
-                                <>
-                                  Due: {new Date(task.due_date).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
-                                </>
-                              ) : (
-                                'No due date'
-                              )}
-                            </span>
-                          </div>
-
-                          {task.created_by_name && (
-                            <div className="text-sm text-muted-foreground">
-                              Assigned by: {task.created_by_name}
-                            </div>
-                          )}
-
-                          {isCompleted && task.score !== undefined && (
-                            <div className="bg-secondary/20 rounded-lg p-3">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Score</span>
-                                <span className="font-bold text-secondary">{task.score}%</span>
-                              </div>
-                              {task.completed_at && (
-                                <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                                  <span>Completed on:</span>
-                                  <span>
-                                    {new Date(task.completed_at).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {isOverdue && (
-                            <div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm">
-                              ⚠️ This task is overdue
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
+                  {tasks.map((task) => (
+                    <TaskCard key={task.id} task={task} />
+                  ))}
                 </div>
-
-                {childTasks.tasks.length === 0 && (
-                  <Card>
-                    <CardContent className="py-8 text-center text-muted-foreground">
-                      No visible tasks for this child. Tutors can make tasks visible to parents when creating them.
-                    </CardContent>
-                  </Card>
-                )}
               </div>
-            )
-          })
+            ))}
+          </div>
+        )}
+
+        {/* Debug info in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed bottom-4 right-4 bg-black/90 text-white p-3 rounded-lg text-xs z-50 max-w-xs">
+            <div className="font-bold mb-1">Parent Debug:</div>
+            <div className="space-y-1">
+              <div>Parent ID: {PARENT_ID}</div>
+              <div>Children: {children.length}</div>
+              <div>Tasks: {tasks.length}</div>
+              <div>From DB: {usingMockData ? 'No (demo)' : 'Yes'}</div>
+              <div className="pt-1 border-t border-white/20">
+                <button 
+                  onClick={() => {
+                    console.log("All Tasks:", tasks)
+                    console.log("Children:", children)
+                    console.log("User:", user)
+                  }}
+                  className="text-blue-300 hover:text-blue-200 underline"
+                >
+                  Log Data
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </DashboardLayout>
   )
 }
-
-// Button component import
-import { Button } from "@/components/ui/button"

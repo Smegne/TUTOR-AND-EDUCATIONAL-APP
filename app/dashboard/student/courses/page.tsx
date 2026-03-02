@@ -1,52 +1,115 @@
+// app/dashboard/student/courses/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { BookOpen, CheckCircle, PlayCircle, Loader2, AlertCircle, Database, RefreshCw } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  BookOpen, 
+  CheckCircle, 
+  PlayCircle, 
+  Loader2, 
+  AlertCircle, 
+  Database, 
+  RefreshCw,
+  GraduationCap,
+  Award,
+  TrendingUp,
+  Clock,
+  BarChart,
+  Target,
+  Sparkles,
+  Star
+} from "lucide-react"
 import { useAuth } from "@/lib/providers/auth-provider"
+import { toast } from "sonner"
 
 interface Course {
   id: string
   name: string
+  englishName: string
+  amharicName: string
   code: string
   grade: number
   description: string
   totalTasks: number
   completedTasks: number
+  averageScore: number
   progress: number
+  tasksUrl: string
+}
+
+interface StudentInfo {
+  id: string
+  name: string
+  email: string
+  grade: number
 }
 
 export default function StudentCoursesPage() {
   const { user } = useAuth()
   const [courses, setCourses] = useState<Course[]>([])
+  const [student, setStudent] = useState<StudentInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [usingMockData, setUsingMockData] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [displayLanguage, setDisplayLanguage] = useState<'amharic' | 'english'>('english')
+  const [stats, setStats] = useState({
+    totalCourses: 0,
+    averageProgress: 0,
+    totalTasks: 0,
+    completedTasks: 0,
+    averageScore: 0
+  })
 
-  useEffect(() => {
-    fetchStudentCourses()
-  }, [])
+  // Get student ID using the same pattern as other pages
+  const getStudentId = useCallback(() => {
+    if ((user as any)?.studentId) return (user as any).studentId
+    if ((user as any)?.userId) return (user as any).userId
+    if (user?.id) return user.id
+    return 'student_1767718447749' // Fallback
+  }, [user])
 
-  const fetchStudentCourses = async () => {
+  const STUDENT_ID = getStudentId()
+
+  const fetchStudentCourses = useCallback(async (showToast = true) => {
     try {
       setLoading(true)
       setError(null)
       
-      const studentId = user?.studentId || "student_001"
+      console.log("🎯 [STUDENT COURSES] Fetching for student:", STUDENT_ID)
       
-      // Fetch student courses from API
-      const response = await fetch(`/api/student/${studentId}/courses`)
+      const response = await fetch(`/api/student-direct/${STUDENT_ID}/courses`)
+      
+      console.log("📊 [STUDENT COURSES] Response status:", response.status)
       
       if (response.ok) {
         const data = await response.json()
+        console.log("✅ [STUDENT COURSES] API Response:", data)
         
         if (data.success) {
           setCourses(data.courses || [])
+          setStudent(data.student)
+          setStats(data.stats || {
+            totalCourses: 0,
+            averageProgress: 0,
+            totalTasks: 0,
+            completedTasks: 0,
+            averageScore: 0
+          })
+          setDisplayLanguage(data.displayLanguage || 'english')
           setUsingMockData(false)
+          
+          if (showToast && data.courses?.length > 0) {
+            toast.success(`Loaded ${data.courses.length} courses for grade ${data.student?.grade}`)
+          } else if (showToast) {
+            toast.info("No courses available for your grade level")
+          }
         } else {
           throw new Error(data.error || 'Failed to fetch courses')
         }
@@ -54,80 +117,120 @@ export default function StudentCoursesPage() {
         throw new Error(`API error: ${response.status}`)
       }
     } catch (error) {
-      console.error('Error fetching student courses:', error)
+      console.error('❌ [STUDENT COURSES] Fetch error:', error)
       setError(error instanceof Error ? error.message : 'Failed to load courses')
       setUsingMockData(true)
       
-      // Fallback to mock data
-      const mockCourses: Course[] = [
-        {
-          id: "math_g5",
-          name: "Mathematics",
-          code: "MATH-G5",
-          grade: 5,
-          description: "Basic arithmetic, geometry, and problem solving",
-          totalTasks: 15,
-          completedTasks: 12,
-          progress: 80
-        },
-        {
-          id: "english_g5",
-          name: "English Language",
-          code: "ENG-G5",
-          grade: 5,
-          description: "Reading, writing, and communication skills",
-          totalTasks: 10,
-          completedTasks: 8,
-          progress: 80
-        },
-        {
-          id: "science_g5",
-          name: "Science",
-          code: "SCI-G5",
-          grade: 5,
-          description: "Introduction to biology, physics, and chemistry",
-          totalTasks: 8,
-          completedTasks: 6,
-          progress: 75
-        },
-        {
-          id: "amharic_g5",
-          name: "Amharic",
-          code: "AMH-G5",
-          grade: 5,
-          description: "Amharic language and literature",
-          totalTasks: 12,
-          completedTasks: 9,
-          progress: 75
-        },
-        {
-          id: "citizenship_g5",
-          name: "Citizenship",
-          code: "CIT-G5",
-          grade: 5,
-          description: "Civic education and ethical values",
-          totalTasks: 6,
-          completedTasks: 5,
-          progress: 83
-        },
-        {
-          id: "sports_g5",
-          name: "Sports",
-          code: "SPT-G5",
-          grade: 5,
-          description: "Physical education and sports activities",
-          totalTasks: 4,
-          completedTasks: 4,
-          progress: 100
-        }
-      ]
-      setCourses(mockCourses)
+      // Load grade-appropriate mock data based on assumed grade
+      const assumedGrade = user?.grade || 5
+      const mockData = getMockCoursesForGrade(assumedGrade)
+      setCourses(mockData.courses)
+      setStudent(mockData.student)
+      setStats(mockData.stats)
+      setDisplayLanguage(assumedGrade >= 7 ? 'english' : 'amharic')
+      
+      if (showToast) {
+        toast.error("Failed to load real data. Using demo data.")
+      }
     } finally {
       setLoading(false)
+      setRefreshing(false)
+    }
+  }, [STUDENT_ID, user?.grade])
+
+  useEffect(() => {
+    fetchStudentCourses(false)
+  }, [fetchStudentCourses])
+
+  const getMockCoursesForGrade = (grade: number) => {
+    if (grade >= 7) {
+      return {
+        student: { id: 'mock_student', name: 'Demo Student', grade: 8 },
+        courses: [
+          {
+            id: 'math_g8',
+            name: 'Mathematics',
+            englishName: 'Mathematics',
+            amharicName: 'ሂሳብ',
+            code: 'MATH-G8',
+            grade: 8,
+            description: 'Basic arithmetic, geometry, and problem solving',
+            totalTasks: 15,
+            completedTasks: 12,
+            averageScore: 89,
+            progress: 80,
+            tasksUrl: '/dashboard/student/tasks?course=math&grade=8'
+          },
+          {
+            id: 'english_g8',
+            name: 'English',
+            englishName: 'English',
+            amharicName: 'እንግሊዝኛ',
+            code: 'ENG-G8',
+            grade: 8,
+            description: 'Reading, writing, and communication skills',
+            totalTasks: 10,
+            completedTasks: 8,
+            averageScore: 84,
+            progress: 80,
+            tasksUrl: '/dashboard/student/tasks?course=english&grade=8'
+          }
+        ],
+        stats: {
+          totalCourses: 2,
+          averageProgress: 80,
+          totalTasks: 25,
+          completedTasks: 20,
+          averageScore: 86.5
+        }
+      }
+    } else {
+      return {
+        student: { id: 'mock_student', name: 'Demo Student', grade: 5 },
+        courses: [
+          {
+            id: 'math_g5',
+            name: 'ሂሳብ',
+            englishName: 'Mathematics',
+            amharicName: 'ሂሳብ',
+            code: 'MATH-G5',
+            grade: 5,
+            description: 'መሰረታዊ ሒሳብ፣ ጂኦሜትሪ እና ችግር መፍታት',
+            totalTasks: 12,
+            completedTasks: 9,
+            averageScore: 85,
+            progress: 75,
+            tasksUrl: '/dashboard/student/tasks?course=math&grade=5'
+          },
+          {
+            id: 'amharic_g5',
+            name: 'አማርኛ',
+            englishName: 'Amharic',
+            amharicName: 'አማርኛ',
+            code: 'AMH-G5',
+            grade: 5,
+            description: 'የአማርኛ ቋንቋ እና ስነጽሁፍ',
+            totalTasks: 8,
+            completedTasks: 6,
+            averageScore: 82,
+            progress: 75,
+            tasksUrl: '/dashboard/student/tasks?course=amharic&grade=5'
+          }
+        ],
+        stats: {
+          totalCourses: 2,
+          averageProgress: 75,
+          totalTasks: 20,
+          completedTasks: 15,
+          averageScore: 83.5
+        }
+      }
     }
   }
 
   const refreshData = () => {
+    toast.info("Refreshing courses...")
+    setRefreshing(true)
     fetchStudentCourses()
   }
 
@@ -138,6 +241,8 @@ export default function StudentCoursesPage() {
     if (courseCode.includes('AMH')) return "text-red-500"
     if (courseCode.includes('CIT')) return "text-orange-500"
     if (courseCode.includes('SPT')) return "text-pink-500"
+    if (courseCode.includes('ART')) return "text-yellow-500"
+    if (courseCode.includes('GEZ')) return "text-indigo-500"
     return "text-primary"
   }
 
@@ -148,119 +253,58 @@ export default function StudentCoursesPage() {
     if (courseCode.includes('AMH')) return "bg-red-500/10"
     if (courseCode.includes('CIT')) return "bg-orange-500/10"
     if (courseCode.includes('SPT')) return "bg-pink-500/10"
+    if (courseCode.includes('ART')) return "bg-yellow-500/10"
+    if (courseCode.includes('GEZ')) return "bg-indigo-500/10"
     return "bg-primary/10"
   }
 
-  const getCourseName = (courseId: string): string => {
-    const courseMap: Record<string, string> = {
-      'math': 'Mathematics',
-      'english': 'English',
-      'amharic': 'Amharic',
-      'science': 'Science',
-      'social_science': 'Social Science',
-      'citizenship': 'Citizenship',
-      'pva': 'PVA',
-      'hpe': 'HPE',
-      'it': 'IT',
-      'ሂሳብ': 'Mathematics',
-      'እንግሊዝኛ': 'English',
-      'አማርኛ': 'Amharic',
-      'አካባቢ_ሳይንስ': 'Environmental Science',
-      'ስነምግባር': 'Citizenship',
-      'ስነጥበብ': 'Arts',
-      'ስፖርት': 'Sports'
-    }
-
-    // Remove grade suffix (e.g., "_g5")
-    const baseCourse = courseId.replace(/_(g\d+|g\d+)$/, '').split('_')[0]
-    return courseMap[baseCourse] || courseId.replace('_', ' ').toUpperCase()
-  }
-
-  const getCourseDescription = (courseId: string): string => {
-    const descriptionMap: Record<string, string> = {
-      'math': 'Basic arithmetic, geometry, and problem solving',
-      'english': 'Reading, writing, and communication skills',
-      'amharic': 'Amharic language and literature',
-      'science': 'Introduction to biology, physics, and chemistry',
-      'social_science': 'History, geography, and social studies',
-      'citizenship': 'Civic education and ethical values',
-      'pva': 'Physical and vocational arts education',
-      'hpe': 'Health and physical education',
-      'it': 'Information technology and computer basics',
-      'ሂሳብ': 'መሰረታዊ ሒሳብ እና ችግር መፍታት',
-      'እንግሊዝኛ': 'ማንበብ፣ መጻፍ እና የንግግር ክህሎቶች',
-      'አማርኛ': 'የአማርኛ ቋንቋ እና ስነጽሁፍ',
-      'አካባቢ_ሳይንስ': 'የተፈጥሮ ሳይንስ መሰረታዊ እውቀት',
-      'ስነምግባር': 'የከተማ ትምህርት እና ስነምግባር',
-      'ስነጥበብ': 'ስነጥበብ እና ፈጠራዊ ሥራዎች',
-      'ስፖርት': 'አካላዊ ትምህርት እና የስፖርት እንቅስቃሴዎች'
-    }
-
-    const baseCourse = courseId.replace(/_(g\d+|g\d+)$/, '').split('_')[0]
-    return descriptionMap[baseCourse] || 'Course description not available'
-  }
-
-  const getCourseCode = (courseId: string): string => {
-    const courseCodeMap: Record<string, string> = {
-      'math': 'MATH',
-      'english': 'ENG',
-      'amharic': 'AMH',
-      'science': 'SCI',
-      'social_science': 'SOC',
-      'citizenship': 'CIT',
-      'pva': 'PVA',
-      'hpe': 'HPE',
-      'it': 'IT',
-      'ሂሳብ': 'MATH',
-      'እንግሊዝኛ': 'ENG',
-      'አማርኛ': 'AMH',
-      'አካባቢ_ሳይንስ': 'SCI',
-      'ስነምግባር': 'CIT',
-      'ስነጥበብ': 'ART',
-      'ስፖርት': 'SPT'
-    }
-
-    // Extract grade from courseId (e.g., "math_g5" -> "5")
-    const gradeMatch = courseId.match(/g(\d+)$/)
-    const grade = gradeMatch ? gradeMatch[1] : '5'
-    
-    const baseCourse = courseId.replace(/_(g\d+|g\d+)$/, '').split('_')[0]
-    const codePrefix = courseCodeMap[baseCourse] || 'CRS'
-    
-    return `${codePrefix}-G${grade}`
-  }
-
-  const extractGradeFromCourseId = (courseId: string): number => {
-    const gradeMatch = courseId.match(/g(\d+)$/)
-    return gradeMatch ? parseInt(gradeMatch[1]) : 5
-  }
-
-  if (loading) {
+  if (loading && courses.length === 0) {
     return (
       <DashboardLayout role="student" studentName={user?.firstName}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading your courses...</p>
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+            <div>
+              <p className="text-lg font-medium">Loading your courses...</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Student ID: {STUDENT_ID}
+              </p>
+            </div>
           </div>
         </div>
       </DashboardLayout>
     )
   }
 
-  if (error && !usingMockData) {
+  if (error && !usingMockData && courses.length === 0) {
     return (
       <DashboardLayout role="student" studentName={user?.firstName}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center max-w-md">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Unable to Load Courses</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={refreshData}>
-                Try Again
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <div className="text-center max-w-md space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Unable to Load Courses</h3>
+              <p className="text-muted-foreground mt-2">{error}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Student ID: {STUDENT_ID}
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center pt-4">
+              <Button onClick={refreshData} className="gap-2" disabled={refreshing}>
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Try Again'}
               </Button>
-              <Button variant="outline" onClick={() => setUsingMockData(true)}>
+              <Button variant="outline" onClick={() => {
+                const mockData = getMockCoursesForGrade(user?.grade || 5)
+                setCourses(mockData.courses)
+                setStudent(mockData.student)
+                setStats(mockData.stats)
+                setUsingMockData(true)
+                setError(null)
+                toast.info("Using demo data")
+              }}>
                 Use Demo Data
               </Button>
             </div>
@@ -271,138 +315,252 @@ export default function StudentCoursesPage() {
   }
 
   return (
-    <DashboardLayout role="student" studentName={user?.firstName}>
+    <DashboardLayout role="student" studentName={student?.name || user?.firstName}>
       {/* Database Status Banner */}
       {usingMockData && (
         <div className="bg-yellow-500/10 border border-yellow-500/20 p-3">
           <div className="flex items-center justify-between gap-2 text-yellow-700">
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4" />
-              <p className="text-sm font-medium">Using demo data</p>
+              <span className="text-sm font-medium">Using demo data</span>
+              <span className="text-xs">(Real data unavailable)</span>
             </div>
             <Button 
-              variant="ghost" 
               size="sm" 
+              variant="outline" 
               onClick={refreshData}
-              className="h-auto p-1 text-yellow-600 hover:text-yellow-800"
+              className="h-7 text-yellow-700 border-yellow-300"
+              disabled={refreshing}
             >
-              <RefreshCw className="h-3 w-3 mr-1" />
+              <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
               Retry Connection
             </Button>
           </div>
         </div>
       )}
-      
+
       <div className="p-6 md:p-8 space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-balance">My Courses</h1>
-            <p className="text-muted-foreground">View all your enrolled courses and progress</p>
+            <h1 className="text-3xl font-bold text-balance">
+              {displayLanguage === 'amharic' ? 'የእኔ ኮርሶች' : 'My Courses'}
+            </h1>
+            <p className="text-muted-foreground">
+              {displayLanguage === 'amharic' 
+                ? `ሁሉንም ኮርሶች እና እድገትዎን ይመልከቱ (ክፍል ${student?.grade || '?'})`
+                : `View all your enrolled courses and progress (Grade ${student?.grade || '?'})`}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Student ID: {STUDENT_ID}
+            </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={refreshData}
-            className="gap-2"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </Button>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-md">
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                {displayLanguage === 'amharic' ? `ክፍል ${student?.grade}` : `Grade ${student?.grade}`}
+              </span>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={refreshData}
+              className="gap-2"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {courses.map((course) => {
-            const courseCode = getCourseCode(course.id)
-            const courseColor = getCourseColor(courseCode)
-            const courseBgColor = getCourseBgColor(courseCode)
-            const pendingTasks = course.totalTasks - course.completedTasks
-
-            return (
-              <Card key={course.id} className="hover:shadow-lg transition-shadow hover:border-primary/50">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className={`${courseBgColor} p-3 rounded-lg`}>
-                      <BookOpen className={`h-6 w-6 ${courseColor}`} />
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge variant="secondary">Grade {course.grade || extractGradeFromCourseId(course.id)}</Badge>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {courseCode}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardTitle className="mt-4">{course.name || getCourseName(course.id)}</CardTitle>
-                  <CardDescription>
-                    {course.description || getCourseDescription(course.id)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+        {/* Stats Overview */}
+        {stats.totalCourses > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Overall Progress</span>
-                      <span className="font-semibold">{course.progress}%</span>
-                    </div>
-                    <Progress value={course.progress} className="h-2" />
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {displayLanguage === 'amharic' ? 'አጠቃላይ ኮርሶች' : 'Total Courses'}
+                    </p>
+                    <p className="text-2xl font-bold">{stats.totalCourses}</p>
                   </div>
+                  <BookOpen className="h-8 w-8 text-primary/50" />
+                </div>
+              </CardContent>
+            </Card>
 
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-muted/50 rounded-lg p-2">
-                      <div className="text-lg font-bold">{course.totalTasks}</div>
-                      <div className="text-xs text-muted-foreground">Total Tasks</div>
-                    </div>
-                    <div className="bg-secondary/20 rounded-lg p-2">
-                      <div className="text-lg font-bold text-secondary">{course.completedTasks}</div>
-                      <div className="text-xs text-muted-foreground">Completed</div>
-                    </div>
-                    <div className="bg-primary/10 rounded-lg p-2">
-                      <div className="text-lg font-bold text-primary">{pendingTasks}</div>
-                      <div className="text-xs text-muted-foreground">Pending</div>
-                    </div>
+            <Card className="bg-gradient-to-br from-green-500/5 to-green-500/10">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {displayLanguage === 'amharic' ? 'አማካይ እድገት' : 'Avg Progress'}
+                    </p>
+                    <p className="text-2xl font-bold text-green-600">{stats.averageProgress}%</p>
                   </div>
+                  <TrendingUp className="h-8 w-8 text-green-400" />
+                </div>
+              </CardContent>
+            </Card>
 
-                  <Button 
-                    className="w-full" 
-                    variant={course.progress === 100 ? "secondary" : "default"}
-                    onClick={() => {
-                      // Navigate to tasks for this course
-                      window.location.href = `/dashboard/student/tasks?course=${course.id}`
-                    }}
-                  >
-                    {course.progress === 100 ? (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Course Completed
-                      </>
-                    ) : (
-                      <>
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                        View Tasks
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+            <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/10">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {displayLanguage === 'amharic' ? 'የተጠናቀቁ ተግባራት' : 'Completed Tasks'}
+                    </p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.completedTasks}/{stats.totalTasks}</p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
 
-        {courses.length === 0 && (
+            <Card className="bg-gradient-to-br from-purple-500/5 to-purple-500/10">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {displayLanguage === 'amharic' ? 'አማካይ ውጤት' : 'Avg Score'}
+                    </p>
+                    <p className="text-2xl font-bold text-purple-600">{Math.round(stats.averageScore)}%</p>
+                  </div>
+                  <Award className="h-8 w-8 text-purple-400" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Courses Grid */}
+        {courses.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No courses assigned yet</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {displayLanguage === 'amharic' ? 'ምንም ኮርሶች አልተመደቡም' : 'No courses assigned yet'}
+              </h3>
               <p className="text-muted-foreground text-center">
-                Your courses will appear here once your tutor enrolls you in courses.
+                {displayLanguage === 'amharic' 
+                  ? 'ኮርሶችዎ አስተማሪዎ ሲመዘግቧቸው እዚህ ይታያሉ።'
+                  : 'Your courses will appear here once your tutor enrolls you in courses.'}
               </p>
               <Button 
                 variant="outline" 
                 className="mt-4"
                 onClick={refreshData}
               >
-                Check Again
+                {displayLanguage === 'amharic' ? 'እንደገና ይሞክሩ' : 'Check Again'}
               </Button>
             </CardContent>
           </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {courses.map((course) => {
+              const courseColor = getCourseColor(course.code)
+              const courseBgColor = getCourseBgColor(course.code)
+              const pendingTasks = course.totalTasks - course.completedTasks
+              const isCompleted = course.progress === 100
+
+              return (
+                <Card key={course.id} className="hover:shadow-lg transition-all hover:border-primary/50 group">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className={`${courseBgColor} p-3 rounded-lg group-hover:scale-110 transition-transform`}>
+                        <BookOpen className={`h-6 w-6 ${courseColor}`} />
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {course.code}
+                        </Badge>
+                        {isCompleted && (
+                          <Badge className="bg-green-500 text-white text-xs">
+                            {displayLanguage === 'amharic' ? 'ተጠናቋል' : 'Completed'}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <CardTitle className="mt-4 text-xl">{course.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {course.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Progress Bar */}
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-muted-foreground">
+                          {displayLanguage === 'amharic' ? 'እድገት' : 'Progress'}
+                        </span>
+                        <span className="font-semibold">{course.progress}%</span>
+                      </div>
+                      <Progress value={course.progress} className="h-2" />
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-muted/50 rounded-lg p-2">
+                        <div className="text-lg font-bold">{course.totalTasks}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {displayLanguage === 'amharic' ? 'አጠቃላይ' : 'Total'}
+                        </div>
+                      </div>
+                      <div className="bg-secondary/20 rounded-lg p-2">
+                        <div className="text-lg font-bold text-secondary">{course.completedTasks}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {displayLanguage === 'amharic' ? 'የተጠናቀቀ' : 'Done'}
+                        </div>
+                      </div>
+                      <div className="bg-primary/10 rounded-lg p-2">
+                        <div className="text-lg font-bold text-primary">{pendingTasks}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {displayLanguage === 'amharic' ? 'ያልተጠናቀቀ' : 'Left'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Average Score if available */}
+                    {course.averageScore > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {displayLanguage === 'amharic' ? 'አማካይ ውጤት' : 'Average Score'}
+                        </span>
+                        <Badge variant="outline" className="bg-secondary/10">
+                          {course.averageScore}%
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* Action Button */}
+                    <Button 
+                      className="w-full" 
+                      variant={isCompleted ? "secondary" : "default"}
+                      onClick={() => {
+                        window.location.href = course.tasksUrl
+                      }}
+                    >
+                      {isCompleted ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          {displayLanguage === 'amharic' ? 'ኮርሱ ተጠናቋል' : 'Course Completed'}
+                        </>
+                      ) : (
+                        <>
+                          <PlayCircle className="h-4 w-4 mr-2" />
+                          {displayLanguage === 'amharic' ? 'ተግባራትን ይመልከቱ' : 'View Tasks'}
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
         )}
       </div>
     </DashboardLayout>
