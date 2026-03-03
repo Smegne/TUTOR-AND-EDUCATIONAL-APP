@@ -1,4 +1,3 @@
-// app/dashboard/parent/courses/page.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
@@ -6,13 +5,12 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { 
   BookOpen, 
   User, 
   Loader2, 
   AlertCircle, 
-  Database, 
   RefreshCw,
   GraduationCap,
   TrendingUp,
@@ -25,10 +23,13 @@ import {
   Filter,
   Search,
   Brain,
-  Zap
+  Zap,
+  ImageIcon
 } from "lucide-react"
 import { useAuth } from "@/lib/providers/auth-provider"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import Image from "next/image"
 
 interface ChildCourse {
   id: string
@@ -45,6 +46,8 @@ interface ChildCourse {
   pendingTasks: number
   color: string
   bgColor: string
+  bannerImage?: string
+  icon?: string
 }
 
 interface ChildStats {
@@ -65,72 +68,103 @@ interface Child {
   grade: number
   courses: ChildCourse[]
   stats: ChildStats
+  displayLanguage?: 'amharic' | 'english'
 }
 
 export default function ParentCoursesPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [usingMockData, setUsingMockData] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [children, setChildren] = useState<Child[]>([])
   const [selectedChild, setSelectedChild] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
-  // Get parent ID using the same pattern as other pages
+  // Get parent ID
   const getParentId = useCallback(() => {
     if ((user as any)?.lookupId) return (user as any).lookupId
     if ((user as any)?.userId) return (user as any).userId
     if ((user as any)?.parentId) return (user as any).parentId
     if (user?.id) return user.id
-    return 'p_mm86u06x_974nf' // Fallback
+    return null
   }, [user])
 
   const PARENT_ID = getParentId()
 
+  // Redirect if no parent ID
+  useEffect(() => {
+    if (!PARENT_ID && !loading) {
+      toast.error("Parent ID not found. Please log in again.")
+      router.push("/login")
+    }
+  }, [PARENT_ID, loading, router])
+
   const fetchParentChildrenCourses = useCallback(async (showToast = true) => {
+    if (!PARENT_ID) {
+      setError("No parent ID available")
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
       
-      console.log("🎯 [PARENT COURSES] Fetching for parent:", PARENT_ID)
+      console.log("🎯 Fetching children courses for parent:", PARENT_ID)
       
-      const response = await fetch(`/api/parent-direct/${PARENT_ID}/children-courses`)
+      const response = await fetch(`/api/parent-direct/${PARENT_ID}/children-courses`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store'
+      })
       
-      console.log("📊 [PARENT COURSES] Response status:", response.status)
+      console.log("📊 Response status:", response.status)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log("✅ [PARENT COURSES] API Response:", data)
-        
-        if (data.success) {
-          setChildren(data.children || [])
-          setUsingMockData(false)
-          
-          if (showToast && data.children?.length > 0) {
-            toast.success(`Loaded courses for ${data.children.length} children`)
-          } else if (showToast && data.children?.length === 0) {
-            toast.info("No children linked yet")
-          }
-        } else {
-          throw new Error(data.error || 'Failed to fetch children courses')
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Parent not found")
         }
-      } else {
-        throw new Error(`API error: ${response.status}`)
+        if (response.status === 401) {
+          throw new Error("Unauthorized access")
+        }
+        if (response.status === 500) {
+          throw new Error("Server error. Please try again later.")
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-    } catch (error) {
-      console.error('❌ [PARENT COURSES] Fetch error:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load children courses')
-      setUsingMockData(true)
       
-      // Load mock data
-      const mockData = getMockChildrenData()
-      setChildren(mockData)
+      const data = await response.json()
+      console.log("✅ API Response received")
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch children courses')
+      }
+      
+      setChildren(data.children || [])
       
       if (showToast) {
-        toast.error("Failed to load real data. Using demo data.")
+        if (data.children?.length > 0) {
+          toast.success(`Loaded courses for ${data.children.length} children`)
+        } else {
+          toast.info("No children linked yet")
+        }
       }
+      
+    } catch (error) {
+      console.error('❌ Fetch error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load children courses'
+      setError(errorMessage)
+      
+      if (showToast) {
+        toast.error(errorMessage)
+      }
+      
+      setChildren([])
+      
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -138,138 +172,15 @@ export default function ParentCoursesPage() {
   }, [PARENT_ID])
 
   useEffect(() => {
-    fetchParentChildrenCourses(false)
-  }, [fetchParentChildrenCourses])
-
-  const getMockChildrenData = (): Child[] => {
-    return [
-      {
-        id: "student_001",
-        name: "Abel Tesfaye",
-        grade: 8,
-        email: "abel@example.com",
-        courses: getMockCoursesForGrade(8),
-        stats: calculateChildStats(getMockCoursesForGrade(8))
-      },
-      {
-        id: "student_002",
-        name: "Emma Wilson",
-        grade: 5,
-        email: "emma@example.com",
-        courses: getMockCoursesForGrade(5),
-        stats: calculateChildStats(getMockCoursesForGrade(5))
-      }
-    ]
-  }
-
-  const getMockCoursesForGrade = (grade: number): ChildCourse[] => {
-    if (grade >= 7) {
-      // Grade 7-8 courses
-      const courses = [
-        { id: 'math', name: 'Mathematics', code: 'MATH', color: 'blue', baseDesc: 'Basic arithmetic, geometry, and problem solving' },
-        { id: 'english', name: 'English', code: 'ENG', color: 'green', baseDesc: 'Reading, writing, and communication skills' },
-        { id: 'amharic', name: 'Amharic', code: 'AMH', color: 'red', baseDesc: 'Amharic language and literature' },
-        { id: 'general_science', name: 'General Science', code: 'SCI', color: 'purple', baseDesc: 'Introduction to biology, physics, and chemistry' },
-        { id: 'citizenship', name: 'Citizenship', code: 'CIT', color: 'orange', baseDesc: 'Civic education and ethical values' },
-        { id: 'social_science', name: 'Social Science', code: 'SOC', color: 'yellow', baseDesc: 'History, geography, and social studies' },
-        { id: 'pva', name: 'PVA', code: 'PVA', color: 'pink', baseDesc: 'Physical and vocational arts education' },
-        { id: 'hpe', name: 'HPE', code: 'HPE', color: 'teal', baseDesc: 'Health and physical education' },
-        { id: 'it', name: 'IT', code: 'IT', color: 'indigo', baseDesc: 'Information technology and computer basics' }
-      ]
-      
-      return courses.map(course => ({
-        id: `${course.id}_g${grade}`,
-        name: course.name,
-        englishName: course.name,
-        amharicName: getAmharicName(course.id),
-        code: `${course.code}-G${grade}`,
-        grade: grade,
-        description: course.baseDesc,
-        completionRate: Math.floor(Math.random() * 40) + 60, // 60-100%
-        avgScore: Math.floor(Math.random() * 30) + 70, // 70-100%
-        totalTasks: Math.floor(Math.random() * 20) + 10, // 10-30
-        completedTasks: Math.floor(Math.random() * 15) + 5, // 5-20
-        pendingTasks: 0,
-        color: course.color,
-        bgColor: `${course.color}-500/10`
-      })).map(course => ({
-        ...course,
-        pendingTasks: course.totalTasks - course.completedTasks
-      }))
-    } else {
-      // Grade 5-6 courses
-      const courses = [
-        { id: 'math', name: 'ሂሳብ', englishName: 'Mathematics', code: 'MATH', color: 'blue', desc: 'መሰረታዊ ሒሳብ፣ ጂኦሜትሪ እና ችግር መፍታት' },
-        { id: 'english', name: 'እንግሊዝኛ', englishName: 'English', code: 'ENG', color: 'green', desc: 'ማንበብ፣ መጻፍ እና የንግግር ክህሎቶች' },
-        { id: 'amharic', name: 'አማርኛ', englishName: 'Amharic', code: 'AMH', color: 'red', desc: 'የአማርኛ ቋንቋ እና ስነጽሁፍ' },
-        { id: 'environmental_science', name: 'አካባቢ ሳይንስ', englishName: 'Environmental Science', code: 'SCI', color: 'purple', desc: 'የተፈጥሮ ሳይንስ መሰረታዊ እውቀት' },
-        { id: 'civics', name: 'ግብረ ግብ', englishName: 'Civics', code: 'CIV', color: 'orange', desc: 'የሲቪክ ትምህርት እና ስነምግባር' },
-        { id: 'arts', name: 'ስነ ጥበብ', englishName: 'Arts', code: 'ART', color: 'pink', desc: 'ስነጥበብ እና ፈጠራዊ ሥራዎች' },
-        { id: 'sports', name: 'ስፖርት', englishName: 'Sports', code: 'SPT', color: 'teal', desc: 'አካላዊ ትምህርት እና የስፖርት እንቅስቃሴዎች' },
-        { id: 'geez', name: 'ግዕዝ', englishName: 'Geez', code: 'GEZ', color: 'indigo', desc: 'የግዕዝ ቋንቋ እና ሥነ ጽሑፍ' }
-      ]
-      
-      return courses.map(course => ({
-        id: `${course.id}_g${grade}`,
-        name: course.name,
-        englishName: course.englishName,
-        amharicName: course.name,
-        code: `${course.code}-G${grade}`,
-        grade: grade,
-        description: course.desc,
-        completionRate: Math.floor(Math.random() * 40) + 60,
-        avgScore: Math.floor(Math.random() * 30) + 70,
-        totalTasks: Math.floor(Math.random() * 20) + 10,
-        completedTasks: Math.floor(Math.random() * 15) + 5,
-        pendingTasks: 0,
-        color: course.color,
-        bgColor: `${course.color}-500/10`
-      })).map(course => ({
-        ...course,
-        pendingTasks: course.totalTasks - course.completedTasks
-      }))
+    if (PARENT_ID) {
+      fetchParentChildrenCourses(false)
     }
-  }
-
-  const getAmharicName = (courseId: string): string => {
-    const map: Record<string, string> = {
-      'math': 'ሂሳብ',
-      'english': 'እንግሊዝኛ',
-      'amharic': 'አማርኛ',
-      'general_science': 'አጠቃላይ ሳይንስ',
-      'citizenship': 'ስነምግባር',
-      'social_science': 'ህብረተሰብ ሳይንስ',
-      'pva': 'ስነጥበብ',
-      'hpe': 'ስፖርት',
-      'it': 'ኢንፎርሜሽን ቴክኖሎጂ'
-    }
-    return map[courseId] || courseId
-  }
-
-  const calculateChildStats = (courses: ChildCourse[]): ChildStats => {
-    const totalTasks = courses.reduce((sum, c) => sum + c.totalTasks, 0)
-    const completedTasks = courses.reduce((sum, c) => sum + c.completedTasks, 0)
-    const totalScore = courses.reduce((sum, c) => sum + (c.avgScore * c.totalTasks), 0)
-    
-    const sortedByScore = [...courses].sort((a, b) => b.avgScore - a.avgScore)
-    const sortedByCompletion = [...courses].sort((a, b) => a.completionRate - b.completionRate)
-
-    return {
-      overallCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-      averageScore: totalTasks > 0 ? Math.round(totalScore / totalTasks) : 0,
-      totalCourses: courses.length,
-      totalTasks,
-      completedTasks,
-      pendingTasks: totalTasks - completedTasks,
-      topPerformingCourse: sortedByScore[0],
-      needsAttentionCourse: sortedByCompletion[0]
-    }
-  }
+  }, [PARENT_ID, fetchParentChildrenCourses])
 
   const refreshData = () => {
-    toast.info("Refreshing courses data...")
     setRefreshing(true)
-    fetchParentChildrenCourses()
+    toast.info("Refreshing courses data...")
+    fetchParentChildrenCourses(true)
   }
 
   const getCourseColor = (courseCode: string) => {
@@ -319,6 +230,25 @@ export default function ParentCoursesPage() {
     return `${grade} (አንደኛ ደረጃ)`
   }
 
+  const getCourseBanner = (course: ChildCourse): string => {
+    if (course.bannerImage) {
+      return course.bannerImage
+    }
+    
+    if (course.code.includes('MATH')) return '/images/courses/mathematics-banner.jpg'
+    if (course.code.includes('ENG')) return '/images/courses/english-banner.jpg'
+    if (course.code.includes('SCI')) return '/images/courses/science-banner.jpg'
+    if (course.code.includes('AMH')) return '/images/courses/amharic-banner.jpg'
+    if (course.code.includes('CIT') || course.code.includes('CIV')) return '/images/courses/citizenship-banner.jpg'
+    if (course.code.includes('SPT') || course.code.includes('HPE')) return '/images/courses/sports-banner.jpg'
+    if (course.code.includes('ART') || course.code.includes('PVA')) return '/images/courses/arts-banner.jpg'
+    if (course.code.includes('GEZ')) return '/images/courses/geez-banner.jpg'
+    if (course.code.includes('SOC')) return '/images/courses/social-banner.jpg'
+    if (course.code.includes('IT')) return '/images/courses/it-banner.jpg'
+    
+    return '/images/courses/default-banner.jpg'
+  }
+
   const filteredChildren = selectedChild === 'all' 
     ? children 
     : children.filter(c => c.id === selectedChild)
@@ -334,6 +264,7 @@ export default function ParentCoursesPage() {
     )
   }
 
+  // Loading state
   if (loading && children.length === 0) {
     return (
       <DashboardLayout role="parent">
@@ -343,7 +274,7 @@ export default function ParentCoursesPage() {
             <div>
               <p className="text-lg font-medium">Loading children's courses...</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Parent ID: {PARENT_ID}
+                Please wait while we fetch your children's enrolled courses
               </p>
             </div>
           </div>
@@ -352,11 +283,38 @@ export default function ParentCoursesPage() {
     )
   }
 
+  // Error state
+  if (error && children.length === 0) {
+    return (
+      <DashboardLayout role="parent">
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                <CardTitle>Failed to Load Courses</CardTitle>
+              </div>
+              <CardDescription>
+                {error}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Button onClick={refreshData} disabled={refreshing} className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Retrying...' : 'Try Again'}
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/dashboard/parent')}>
+                Go to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout role="parent">
-      
-      
       <div className="p-6 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -365,24 +323,23 @@ export default function ParentCoursesPage() {
             <p className="text-muted-foreground">
               View all courses your children are enrolled in and track their progress
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Parent ID: {PARENT_ID} • {children.length} child{children.length !== 1 ? 'ren' : ''}
-            </p>
           </div>
           
           <div className="flex items-center gap-3">
-            <select 
-              className="border rounded-md px-3 py-2 text-sm bg-background"
-              value={selectedChild}
-              onChange={(e) => setSelectedChild(e.target.value)}
-            >
-              <option value="all">All Children</option>
-              {children.map(child => (
-                <option key={child.id} value={child.id}>
-                  {child.name} (Grade {child.grade})
-                </option>
-              ))}
-            </select>
+            {children.length > 0 && (
+              <select 
+                className="border rounded-md px-3 py-2 text-sm bg-background"
+                value={selectedChild}
+                onChange={(e) => setSelectedChild(e.target.value)}
+              >
+                <option value="all">All Children</option>
+                {children.map(child => (
+                  <option key={child.id} value={child.id}>
+                    {child.name} (Grade {child.grade})
+                  </option>
+                ))}
+              </select>
+            )}
 
             <Button 
               variant="outline" 
@@ -432,7 +389,7 @@ export default function ParentCoursesPage() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <User className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No children found</h3>
-              <p className="text-muted-foreground text-center">
+              <p className="text-muted-foreground text-center max-w-md">
                 {selectedChild !== 'all' 
                   ? "No data available for the selected child."
                   : "Your children's courses will appear here once they are enrolled in the system."}
@@ -466,7 +423,7 @@ export default function ParentCoursesPage() {
                         <div className="flex items-center gap-3 mt-1">
                           <Badge variant="secondary" className="gap-1">
                             <GraduationCap className="h-3 w-3" />
-                            Grade {child.grade}
+                            {getGradeLabel(child.grade)}
                           </Badge>
                           {child.email && (
                             <span className="text-sm text-muted-foreground">{child.email}</span>
@@ -512,7 +469,7 @@ export default function ParentCoursesPage() {
                     </div>
                     <div className="bg-white/50 rounded-lg p-3">
                       <div className="text-sm text-muted-foreground mb-1">Performance</div>
-                      <div className={`text-xl font-bold ${
+                      <div className={`text-lg font-bold ${
                         getPerformanceText(child.stats.averageScore).color
                       }`}>
                         {getPerformanceText(child.stats.averageScore).text}
@@ -525,46 +482,115 @@ export default function ParentCoursesPage() {
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {filteredCoursesList.map((course) => {
                     const courseColor = getCourseColor(course.code)
-                    const courseBgColor = getCourseBgColor(course.code)
                     const performance = getPerformanceText(course.avgScore)
+                    const bannerImage = getCourseBanner(course)
+                    const pendingTasks = course.pendingTasks
 
                     return (
-                      <Card key={course.id} className="hover:shadow-lg transition-all hover:border-primary/50 group">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className={`${courseBgColor} p-3 rounded-lg group-hover:scale-110 transition-transform`}>
-                              <BookOpen className={`h-5 w-5 ${courseColor}`} />
+                      <Card 
+                        key={course.id} 
+                        className="hover:shadow-lg transition-all hover:border-primary/50 group overflow-hidden"
+                      >
+                        {/* Banner Image Section */}
+                        <div className="relative h-36 w-full overflow-hidden bg-muted">
+                          {bannerImage ? (
+                            <Image
+                              src={bannerImage}
+                              alt={course.name}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full bg-muted">
+                              <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <Badge variant="secondary" className="text-xs">
-                                Grade {course.grade}
-                              </Badge>
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {course.code}
-                              </Badge>
-                            </div>
-                          </div>
-                          <CardTitle className="mt-4 text-xl">{course.name}</CardTitle>
-                     
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {/* Progress Bar */}
+                          )}
                           
+                          {/* Overlay with course code */}
+                          <div className="absolute top-3 right-3 flex gap-2">
+                            <Badge variant="secondary" className="shadow-lg">
+                              Grade {course.grade}
+                            </Badge>
+                            <Badge variant="outline" className="bg-background/80 shadow-lg font-mono">
+                              {course.code}
+                            </Badge>
+                          </div>
 
-                         
+                          {/* Completion indicator */}
+                          {course.completionRate > 0 && (
+                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200">
+                              <div 
+                                className="h-full bg-primary transition-all duration-300"
+                                style={{ width: `${course.completionRate}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
 
-                          {/* Score and Performance */}
-                          {/* <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Average Score</span>
-                            <div className="flex items-center gap-2">
-                              <span className={`font-semibold ${performance.color}`}>
-                                {course.avgScore}%
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between">
+                            <CardTitle className="text-lg">{course.name}</CardTitle>
+                          </div>
+                          <CardDescription className="line-clamp-2 text-xs">
+                            {course.description}
+                          </CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="space-y-3">
+                          {/* Progress Bar */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Completion Rate</span>
+                              <span className="font-medium">{course.completionRate}%</span>
+                            </div>
+                            <Progress value={course.completionRate} className="h-1.5" />
+                          </div>
+
+                          {/* Tasks and Score Info */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <BookOpen className="h-3 w-3" />
+                              <span>
+                                {course.completedTasks}/{course.totalTasks} tasks
                               </span>
-                              <Badge variant="outline" className={`text-xs ${performance.color}`}>
+                            </div>
+                            
+                            {course.avgScore > 0 && (
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Award className="h-3 w-3" />
+                                <span className={performance.color}>
+                                  {course.avgScore}% avg
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Pending Tasks Badge */}
+                          {pendingTasks > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-2 py-1 rounded-md">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                {pendingTasks} {pendingTasks === 1 ? 'task' : 'tasks'} pending
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Score Performance Badge */}
+                          {course.avgScore > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">Performance</span>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${performance.color} border-current/20`}
+                              >
                                 {performance.text}
                               </Badge>
                             </div>
-                          </div> */}
+                          )}
 
                           {/* Quick Actions */}
                           <div className="flex gap-2 pt-2">
@@ -573,7 +599,7 @@ export default function ParentCoursesPage() {
                               size="sm" 
                               className="flex-1"
                               onClick={() => {
-                                window.location.href = `/dashboard/parent/tasks?child=${child.id}&course=${course.id}`
+                                router.push(`/dashboard/parent/tasks?child=${child.id}&course=${course.id}`)
                               }}
                             >
                               View Tasks
@@ -583,7 +609,7 @@ export default function ParentCoursesPage() {
                               variant="ghost" 
                               size="sm"
                               onClick={() => {
-                                window.location.href = `/dashboard/parent/status?child=${child.id}&course=${course.id}`
+                                router.push(`/dashboard/parent/status?child=${child.id}&course=${course.id}`)
                               }}
                             >
                               Details
@@ -596,69 +622,71 @@ export default function ParentCoursesPage() {
                 </div>
 
                 {/* Course Insights */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Top Performing Course */}
-                  {child.stats.topPerformingCourse && (
-                    <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-green-700">
-                          <Award className="h-5 w-5" />
-                          Top Performing Course
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold">{child.stats.topPerformingCourse.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {child.stats.topPerformingCourse.code}
-                            </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="secondary" className="bg-green-100 text-green-700">
-                                Score: {child.stats.topPerformingCourse.avgScore}%
-                              </Badge>
-                              <Badge variant="outline">
-                                Progress: {child.stats.topPerformingCourse.completionRate}%
-                              </Badge>
+                {(child.stats.topPerformingCourse || child.stats.needsAttentionCourse) && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Top Performing Course */}
+                    {child.stats.topPerformingCourse && (
+                      <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-transparent">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400 text-base">
+                            <Award className="h-4 w-4" />
+                            Top Performing Course
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-semibold">{child.stats.topPerformingCourse.name}</h3>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {child.stats.topPerformingCourse.code}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                                  Score: {child.stats.topPerformingCourse.avgScore}%
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  Progress: {child.stats.topPerformingCourse.completionRate}%
+                                </Badge>
+                              </div>
                             </div>
+                            <Sparkles className="h-8 w-8 text-green-500" />
                           </div>
-                          <Sparkles className="h-8 w-8 text-green-500" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {/* Needs Attention Course */}
-                  {child.stats.needsAttentionCourse && child.stats.needsAttentionCourse.completionRate < 70 && (
-                    <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-orange-700">
-                          <Target className="h-5 w-5" />
-                          Needs Attention
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold">{child.stats.needsAttentionCourse.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {child.stats.needsAttentionCourse.code}
-                            </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                                Progress: {child.stats.needsAttentionCourse.completionRate}%
-                              </Badge>
-                              <Badge variant="outline">
-                                Pending: {child.stats.needsAttentionCourse.pendingTasks} tasks
-                              </Badge>
+                    {/* Needs Attention Course */}
+                    {child.stats.needsAttentionCourse && child.stats.needsAttentionCourse.completionRate < 70 && (
+                      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/20 dark:to-transparent">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-base">
+                            <Target className="h-4 w-4" />
+                            Needs Attention
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-semibold">{child.stats.needsAttentionCourse.name}</h3>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {child.stats.needsAttentionCourse.code}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
+                                  Progress: {child.stats.needsAttentionCourse.completionRate}%
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  Pending: {child.stats.needsAttentionCourse.pendingTasks} tasks
+                                </Badge>
+                              </div>
                             </div>
+                            <Brain className="h-8 w-8 text-orange-500" />
                           </div>
-                          <Brain className="h-8 w-8 text-orange-500" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
@@ -667,6 +695,3 @@ export default function ParentCoursesPage() {
     </DashboardLayout>
   )
 }
-
-// Button component import
-import { Button } from "@/components/ui/button"

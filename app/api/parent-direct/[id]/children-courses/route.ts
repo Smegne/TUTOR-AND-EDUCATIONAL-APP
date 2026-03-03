@@ -1,4 +1,3 @@
-// app/api/parent-direct/[id]/children-courses/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 
@@ -84,32 +83,151 @@ export async function GET(
     }
 
     // ===========================================
-    // STEP 3: Define course templates by grade
+    // STEP 3: Define course templates by grade with banner images
     // ===========================================
     
-    // Grade 7 & 8 courses (English names)
+    // Grade 7 & 8 courses (English names) with banner images
     const grade78Courses = [
-      { id: 'math', name: 'Mathematics', amharicName: 'ሂሳብ', code: 'MATH', description: 'Basic arithmetic, geometry, and problem solving' },
-      { id: 'english', name: 'English', amharicName: 'እንግሊዝኛ', code: 'ENG', description: 'Reading, writing, and communication skills' },
-      { id: 'amharic', name: 'Amharic', amharicName: 'አማርኛ', code: 'AMH', description: 'Amharic language and literature' },
-      { id: 'general_science', name: 'General Science', amharicName: 'አጠቃላይ ሳይንስ', code: 'SCI', description: 'Introduction to biology, physics, and chemistry' },
-      { id: 'citizenship', name: 'Citizenship', amharicName: 'ስነምግባር', code: 'CIT', description: 'Civic education and ethical values' },
-      { id: 'social_science', name: 'Social Science', amharicName: 'ህብረተሰብ ሳይንስ', code: 'SOC', description: 'History, geography, and social studies' },
-      { id: 'pva', name: 'PVA', amharicName: 'ስነጥበብ', code: 'PVA', description: 'Physical and vocational arts education' },
-      { id: 'hpe', name: 'HPE', amharicName: 'ስፖርት', code: 'HPE', description: 'Health and physical education' },
-      { id: 'it', name: 'IT', amharicName: 'ኢንፎርሜሽን ቴክኖሎጂ', code: 'IT', description: 'Information technology and computer basics' }
+      { 
+        id: 'math', 
+        name: 'Mathematics', 
+        amharicName: 'ሂሳብ', 
+        code: 'MATH',
+        bannerImage: '/images/courses/maths.jpg',
+        icon: '/images/courses/maths.jpg'
+      },
+      { 
+        id: 'english', 
+        name: 'English', 
+        amharicName: 'እንግሊዝኛ', 
+        code: 'ENG',
+        bannerImage: 'https://kehulum.com/up_asset/b/285/kehulum1700050832544c4fb402.png',
+        icon: '/images/courses/english-icon.png'
+      },
+      { 
+        id: 'amharic', 
+        name: 'አማርኛ', 
+        amharicName: 'አማርኛ', 
+        code: 'AMH',
+        bannerImage: 'https://kehulum.com/up_asset/b/287/kehulum1700053349f0ac4ef524.png',
+        icon: '/images/courses/amharic-icon.png'
+      },
+      { 
+        id: 'general_science', 
+        name: 'General Science', 
+        amharicName: 'አጠቃላይ ሳይንስ', 
+        code: 'SCI',
+        bannerImage: 'https://imgv2-1-f.scribdassets.com/img/document/891427239/original/b5a77a6bcc/1?v=1',
+        icon: '/images/courses/science-icon.png'
+      },
+      { 
+        id: 'citizenship', 
+        name: 'Citizenship', 
+        amharicName: 'ስነምግባር', 
+        code: 'CIT',
+        bannerImage: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQnGk4VcKxPJ7wCo6yCQjaFI_YQ6PDPCJpW3g&s',
+        icon: '/images/courses/citizenship-icon.png'
+      },
+      { 
+        id: 'social_science', 
+        name: 'ህብረተሰብ ሳይንስ', 
+        amharicName: 'ህብረተሰብ ሳይንስ', 
+        code: 'SOC',
+        bannerImage: 'https://imgv2-1-f.scribdassets.com/img/document/661461933/original/579e4d31c1/1?v=1',
+        icon: '/images/courses/social-icon.png'
+      },
+      { 
+        id: 'pva', 
+        name: 'ስነ-ጥበብ', 
+        amharicName: 'ስነጥበብ', 
+        code: 'PVA',
+        bannerImage: 'https://imgv2-2-f.scribdassets.com/img/document/749328809/original/0d2d825e58/1?v=1',
+        icon: 'https://play-lh.googleusercontent.com/20rotv-koVlxZ50xekvOFwWBWnQhhQVfwv-V-v5fOdV8y40qgW_kiPm3Hl7WJLz8JQ=w526-h296-rw'
+      },
+      { 
+        id: 'hpe', 
+        name: 'ስፖርት', 
+        amharicName: 'ስፖርት', 
+        code: 'HPE',
+        bannerImage: 'https://imgv2-1-f.scribdassets.com/img/document/797941887/original/b7f1586a7a/1?v=1',
+        icon: '/images/courses/sports-icon.png'
+      },
+      { 
+        id: 'it', 
+        name: 'IT', 
+        amharicName: 'ኢንፎርሜሽን ቴክኖሎጂ', 
+        code: 'IT',
+        bannerImage: 'https://kehulum.com/up_asset/b/288/kehulum170005382994f94396d8.png',
+        icon: '/images/courses/it-icon.png'
+      }
     ];
 
-    // Grade 5 & 6 courses (Amharic names primary)
+    // Grade 5 & 6 courses (Amharic names primary) with banner images
     const grade56Courses = [
-      { id: 'math', name: 'ሂሳብ', englishName: 'Mathematics', code: 'MATH', description: 'መሰረታዊ ሒሳብ፣ ጂኦሜትሪ እና ችግር መፍታት' },
-      { id: 'english', name: 'እንግሊዝኛ', englishName: 'English', code: 'ENG', description: 'ማንበብ፣ መጻፍ እና የንግግር ክህሎቶች' },
-      { id: 'amharic', name: 'አማርኛ', englishName: 'Amharic', code: 'AMH', description: 'የአማርኛ ቋንቋ እና ስነጽሁፍ' },
-      { id: 'environmental_science', name: 'አካባቢ ሳይንስ', englishName: 'Environmental Science', code: 'SCI', description: 'የተፈጥሮ ሳይንስ መሰረታዊ እውቀት' },
-      { id: 'civics', name: 'ግብረ ግብ', englishName: 'Civics', code: 'CIV', description: 'የሲቪክ ትምህርት እና ስነምግባር' },
-      { id: 'arts', name: 'ስነ ጥበብ', englishName: 'Arts', code: 'ART', description: 'ስነጥበብ እና ፈጠራዊ ሥራዎች' },
-      { id: 'sports', name: 'ስፖርት', englishName: 'Sports', code: 'SPT', description: 'አካላዊ ትምህርት እና የስፖርት እንቅስቃሴዎች' },
-      { id: 'geez', name: 'ግዕዝ', englishName: 'Geez', code: 'GEZ', description: 'የግዕዝ ቋንቋ እና ሥነ ጽሑፍ' }
+      { 
+        id: 'math', 
+        name: 'Mathematics', 
+        amharicName: 'ሂሳብ', 
+        code: 'MATH',
+        bannerImage: 'https://play-lh.googleusercontent.com/g5zKtPFHgCV5n2P2sYMryVV6939fEbbXKb71xMMDPCQSO1GcJtWH-wQZKy28DZJe-w=rw-w512-h320',
+        icon: '/images/courses/mathematics-icon.png'
+      },
+      { 
+        id: 'english', 
+        name: 'English', 
+        amharicName: 'እንግሊዝኛ', 
+        code: 'ENG',
+        bannerImage: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRuaqWRnNj9c9qnKgvGUyOTgL57awU7P1kElA&s',
+        icon: '/images/courses/english-icon.png'
+      },
+      { 
+        id: 'amharic', 
+        name: 'Amharic', 
+        amharicName: 'አማርኛ', 
+        code: 'AMH',
+        bannerImage: 'https://dirzon.com//file/telegram/Ethiopian%20Education2/Grade%205%20amharic.png',
+        icon: '/images/courses/amharic-icon.png'
+      },
+      { 
+        id: 'environmental_science', 
+        name: 'Environmental Science', 
+        amharicName: 'አካባቢ ሳይንስ', 
+        code: 'SCI',
+        bannerImage: 'https://imgv2-1-f.scribdassets.com/img/document/781878099/original/9d44e8c0c1/1?v=1',
+        icon: '/images/courses/environmental-icon.png'
+      },
+      { 
+        id: 'civics', 
+        name: 'Civics', 
+        amharicName: 'ግብረ ግብ', 
+        code: 'CIV',
+        bannerImage: '/images/courses/civics-banner.jpg',
+        icon: '/images/courses/civics-icon.png'
+      },
+      { 
+        id: 'arts', 
+        name: 'Arts', 
+        amharicName: 'ስነ ጥበብ', 
+        code: 'ART',
+        bannerImage: '/images/courses/arts-banner.jpg',
+        icon: '/images/courses/arts-icon.png'
+      },
+      { 
+        id: 'sports', 
+        name: 'Sports', 
+        amharicName: 'ስፖርት', 
+        code: 'SPT',
+        bannerImage: '/images/courses/sports-banner.jpg',
+        icon: '/images/courses/sports-icon.png'
+      },
+      { 
+        id: 'geez', 
+        name: 'Geez', 
+        amharicName: 'ግዕዝ', 
+        code: 'GEZ',
+        bannerImage: '/images/courses/geez-banner.jpg',
+        icon: '/images/courses/geez-icon.png'
+      }
     ];
 
     // ===========================================
@@ -195,6 +313,8 @@ export async function GET(
                 code: `${template.code}-G${studentGrade}`,
                 grade: studentGrade,
                 description: template.description,
+                bannerImage: template.bannerImage,
+                icon: template.icon,
                 completionRate,
                 avgScore: taskInfo.avgScore,
                 totalTasks: taskInfo.totalTasks,
@@ -205,7 +325,7 @@ export async function GET(
               };
             });
           } else {
-            // If no student ID, return courses with zero stats
+            // If no student ID, return courses with zero stats but with banner images
             courses = courseTemplates.map(template => ({
               id: `${template.id}_g${studentGrade}`,
               name: displayLanguage === 'amharic' ? (template as any).amharicName || template.name : template.name,
@@ -214,6 +334,8 @@ export async function GET(
               code: `${template.code}-G${studentGrade}`,
               grade: studentGrade,
               description: template.description,
+              bannerImage: template.bannerImage,
+              icon: template.icon,
               completionRate: 0,
               avgScore: 0,
               totalTasks: 0,

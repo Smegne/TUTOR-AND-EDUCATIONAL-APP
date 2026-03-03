@@ -150,19 +150,19 @@ export default function StudentDashboard() {
     role="student"
     studentName={student?.name || user?.firstName}
   >
-    <div className="p-6 space-y-6">
-
+    <div className="p-6 space-y-6 ">
+    
       {/* Welcome Section */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl">
+      <div className="relative rounded-3xl overflow-hidden shadow-xl h-96">
 
         {/* Background Image */}
         <div className="absolute inset-0">
           <img
-            src="/images/education-bg.jpg" // change to your image path
+            src="/happy-student-learning-with-tablet-in-colorful-edu.jpg" // change to your image path
             alt="Education Background"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+          <div className="absolute inset-0"></div>
         </div>
 
         {/* Content */}
@@ -173,7 +173,7 @@ export default function StudentDashboard() {
             <div className="space-y-4">
 
               {/* Animated Main Title */}
-              <h1 className="text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-yellow-300 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-pulse">
+              <h1 className="text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-red-300 via-pink-400 to-green-400 bg-black-500 text-white animate-pulse">
                 Welcome to ጥናት ቤት
               </h1>
 
@@ -220,7 +220,9 @@ export default function StudentDashboard() {
             </div>
           </div>
         </div>
-      </div>
+      
+       </div>
+
 
     </div>
 
