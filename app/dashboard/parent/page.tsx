@@ -1,7 +1,7 @@
 // app/dashboard/parent/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -9,24 +9,24 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
-  TrendingUp, 
-  Clock, 
-  CheckCircle2, 
-  BookOpen, 
-  Award, 
-  Database, 
-  Loader2, 
-  Users, 
-  AlertCircle, 
-  Mail,
-  UserPlus,
-  Eye,
-  EyeOff,
-  Filter,
-  RefreshCw,
-  ChevronRight
+  Users, BookOpen, Clock, CheckCircle2, Award, Loader2, 
+  AlertCircle, RefreshCw, ChevronRight, Heart, Target, Sparkles,
+  Activity, UserPlus, Mail, Filter, Star, Calendar, Zap
 } from "lucide-react"
 import { useAuth } from "@/lib/providers/auth-provider"
+import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
+
+const brandColors = {
+  primary: "#10B981",
+  primaryDark: "#059669",
+  primaryLight: "#D1FAE5",
+  primaryBg: "#ECFDF5",
+  white: "#FFFFFF",
+  gray: "#6B7280",
+  grayLight: "#F9FAFB",
+  grayBorder: "#E5E7EB",
+}
 
 interface Task {
   id: string
@@ -36,16 +36,12 @@ interface Task {
   grade_level: number
   difficulty: string
   estimated_time_minutes: number
-  note_content?: string
-  video_link?: string
-  images?: string[]
   parent_visibility: boolean
   created_at: string
-  created_by: string
   status?: string
   score?: number
-  time_spent?: number
   completed_at?: string
+  time_spent?: number
 }
 
 interface Child {
@@ -53,12 +49,9 @@ interface Child {
   name: string
   grade: number
   courses: string[]
-  parent_id: string
-  userId: string
   email?: string
   status: 'linked' | 'pending' | 'invited'
   linked_at?: string
-  invitation_sent_at?: string
 }
 
 interface ParentStats {
@@ -75,262 +68,95 @@ interface ParentStats {
   pendingChildren: number
 }
 
-interface ParentDashboardData {
-  children: Child[]
-  tasks: Task[]
-  stats: ParentStats
-}
-
 export default function ParentDashboard() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [usingMockData, setUsingMockData] = useState(false)
-  const [dashboardData, setDashboardData] = useState<ParentDashboardData>({
-    children: [],
-    tasks: [],
-    stats: {
-      todaysCompleted: 0,
-      todaysTotal: 0,
-      todaysProgress: 0,
-      weeklyStreak: 0,
-      weeklyCompleted: 0,
-      weeklyTotal: 0,
-      weeklyProgress: 0,
-      avgScore: 0,
-      totalChildren: 0,
-      linkedChildren: 0,
-      pendingChildren: 0
-    }
-  })
+  const [children, setChildren] = useState<Child[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [stats, setStats] = useState<ParentStats | null>(null)
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    console.log('ParentDashboard mounted, user:', user);
-    fetchParentDashboardData()
-  }, [user]) // Re-fetch when user changes
+  const getParentId = useCallback(() => {
+    if ((user as any)?.lookupId) return (user as any).lookupId
+    if ((user as any)?.userId) return (user as any).userId
+    if ((user as any)?.parentId) return (user as any).parentId
+    if (user?.id) return user.id
+    return null
+  }, [user])
 
-  // ===========================================
-  // UPDATED fetchParentDashboardData FUNCTION
-  // ===========================================
-  const fetchParentDashboardData = async () => {
+  const PARENT_ID = getParentId()
+
+  const fetchParentDashboardData = useCallback(async (showToast = false) => {
+    if (!PARENT_ID) {
+      setError("No parent ID found. Please log in again.")
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
       
-      console.log('fetchParentDashboardData called with user:', user);
+      console.log("🔄 Fetching parent dashboard from database for ID:", PARENT_ID)
       
-      // Get the correct lookup ID for parent
-      let parentId = '';
+      const response = await fetch(`/api/parent/${PARENT_ID}/dashboard`)
       
-      if (user) {
-        console.log('User object:', {
-          id: user.id,
-          userId: (user as any).userId,
-          parentId: (user as any).parentId,
-          lookupId: (user as any).lookupId,
-          role: user.role,
-          email: user.email
-        });
-        
-        // For parents, we need the users table ID (starts with p_)
-        if (user.role === 'parent') {
-          // Priority 1: Use lookupId if available (from our enhanced auth provider)
-          if ((user as any).lookupId && typeof (user as any).lookupId === 'string' && (user as any).lookupId.startsWith('p_')) {
-            parentId = (user as any).lookupId;
-            console.log('Using lookupId:', parentId);
-          }
-          // Priority 2: Use userId (from users table)
-          else if ((user as any).userId && typeof (user as any).userId === 'string' && (user as any).userId.startsWith('p_')) {
-            parentId = (user as any).userId;
-            console.log('Using userId:', parentId);
-          }
-          // Priority 3: Use parentId
-          else if ((user as any).parentId && typeof (user as any).parentId === 'string' && (user as any).parentId.startsWith('p_')) {
-            parentId = (user as any).parentId;
-            console.log('Using parentId:', parentId);
-          }
-          // Priority 4: Use the ID if it starts with p_
-          else if (user.id && user.id.startsWith('p_')) {
-            parentId = user.id;
-            console.log('Using user.id:', parentId);
-          }
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch data: ${response.status}`)
       }
       
-      // For testing with your specific user (ageru@gmail.com)
-      if (!parentId && user?.email === 'ageru@gmail.com') {
-        parentId = 'p_mm86u06x_974nf';
-        console.log('Using hardcoded parentId for ageru@gmail.com:', parentId);
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to fetch dashboard data")
       }
       
-      // Last resort fallback for development
-      if (!parentId && process.env.NODE_ENV === 'development') {
-        parentId = 'p_mm86u06x_974nf'; // Your actual parent user_id
-        console.log('Using development fallback parentId:', parentId);
+      setChildren(data.children || [])
+      setTasks(data.tasks || [])
+      setStats(data.stats)
+      
+      if (data.children?.length > 0 && !selectedChildId) {
+        setSelectedChildId(data.children[0].id)
       }
       
-      console.log('Final parentId for API call:', parentId);
-      
-      // If still no parentId, use mock data
-      if (!parentId) {
-        console.log('No valid parent ID found, using mock data');
-        setUsingMockData(true);
-        loadMockData();
-        return;
+      if (showToast) {
+        toast.success(`Dashboard updated with ${data.children?.length || 0} children`)
       }
       
-      // Make the API call with the correct ID
-      console.log(`Fetching from: /api/parent/${parentId}/dashboard`);
-      const response = await fetch(`/api/parent/${parentId}/dashboard`)
+      console.log("✅ Database data loaded:", {
+        children: data.children?.length,
+        tasks: data.tasks?.length,
+        stats: data.stats
+      })
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('API response:', data);
-        
-        if (data.success) {
-          setDashboardData(data)
-          setUsingMockData(false)
-          setError(null)
-          
-          // Set first child as selected if available
-          if (data.children && data.children.length > 0) {
-            setSelectedChildId(data.children[0].id)
-          }
-        } else {
-          console.error('API returned error:', data.error);
-          throw new Error(data.error || 'Failed to fetch dashboard data')
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        
-        if (response.status === 404) {
-          console.log('Parent not found, using mock data');
-          setUsingMockData(true);
-          loadMockData();
-        } else {
-          throw new Error(errorData.error || `API error: ${response.status}`)
-        }
+    } catch (err) {
+      console.error("❌ Error fetching from database:", err)
+      setError(err instanceof Error ? err.message : "Failed to load dashboard data")
+      if (showToast) {
+        toast.error("Failed to load data from database")
       }
-    } catch (error) {
-      console.error('Error fetching parent dashboard data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load data')
-      setUsingMockData(true)
-      
-      // Load mock data as fallback
-      loadMockData()
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }
+  }, [PARENT_ID, selectedChildId])
 
-  // Helper function to load mock data
-  const loadMockData = () => {
-    console.log('Loading mock data');
-    const mockData: ParentDashboardData = {
-      children: [
-        {
-          id: "student_001",
-          name: "Abel Tesfaye",
-          grade: 8,
-          courses: ["Mathematics", "Science", "English"],
-          parent_id: user?.id || "parent_001",
-          userId: "s_user_001",
-          email: "abel@student.com",
-          status: 'linked',
-          linked_at: new Date().toISOString()
-        },
-        {
-          id: "student_002",
-          name: "Emma Wilson",
-          grade: 7,
-          courses: ["Mathematics", "History"],
-          parent_id: user?.id || "parent_001",
-          userId: "s_user_002",
-          email: "emma@student.com",
-          status: 'linked',
-          linked_at: new Date(Date.now() - 86400000).toISOString()
-        },
-        {
-          id: "pending_001",
-          name: "Not Registered",
-          grade: 0,
-          courses: [],
-          parent_id: user?.id || "parent_001",
-          userId: "",
-          email: "child3@example.com",
-          status: 'pending'
-        }
-      ],
-      tasks: [
-        {
-          id: "task_001",
-          title: "Algebra Fundamentals",
-          description: "Practice basic algebraic equations",
-          subject: "Mathematics",
-          grade_level: 8,
-          difficulty: "medium",
-          estimated_time_minutes: 45,
-          parent_visibility: true,
-          created_at: new Date().toISOString(),
-          created_by: "tutor_001",
-          status: 'completed',
-          score: 92,
-          time_spent: 38,
-          completed_at: new Date().toISOString()
-        },
-        {
-          id: "task_002",
-          title: "Science Experiment Report",
-          description: "Document your findings from the chemistry lab",
-          subject: "Science",
-          grade_level: 8,
-          difficulty: "hard",
-          estimated_time_minutes: 60,
-          parent_visibility: true,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          created_by: "tutor_002",
-          status: 'in_progress',
-          time_spent: 25
-        }
-      ],
-      stats: {
-        todaysCompleted: 3,
-        todaysTotal: 5,
-        todaysProgress: 60,
-        weeklyStreak: 7,
-        weeklyCompleted: 5,
-        weeklyTotal: 8,
-        weeklyProgress: 63,
-        avgScore: 85,
-        totalChildren: 3,
-        linkedChildren: 2,
-        pendingChildren: 1
-      }
+  useEffect(() => {
+    if (PARENT_ID) {
+      fetchParentDashboardData()
+    } else {
+      setLoading(false)
+      setError("Authentication required. Please log in.")
     }
-    
-    setDashboardData(mockData)
-    if (mockData.children.length > 0) {
-      setSelectedChildId(mockData.children[0].id)
-    }
-  }
-
-  const selectedChild = selectedChildId 
-    ? dashboardData.children.find(child => child.id === selectedChildId) 
-    : null
-
-  const childTasks = selectedChild
-    ? dashboardData.tasks.filter(task => task.grade_level === selectedChild.grade)
-    : dashboardData.tasks
+  }, [PARENT_ID, fetchParentDashboardData])
 
   const refreshData = () => {
-    fetchParentDashboardData()
+    setRefreshing(true)
+    fetchParentDashboardData(true)
   }
 
   const sendInvitation = async (childEmail: string) => {
@@ -339,29 +165,36 @@ export default function ParentDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentId: (user as any)?.userId || user?.id,
+          parentId: PARENT_ID,
           childEmail,
           parentName: user?.firstName
         })
       })
       
       if (response.ok) {
-        alert('Invitation sent successfully!')
+        toast.success('Invitation sent successfully!')
         refreshData()
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to send invitation');
+        const error = await response.json()
+        toast.error(error.error || 'Failed to send invitation')
       }
     } catch (error) {
       console.error('Error sending invitation:', error)
-      alert('Failed to send invitation')
+      toast.error('Failed to send invitation')
     }
   }
 
-  const formatTime = (completedAt?: string) => {
-    if (!completedAt) return "Pending"
-    const date = new Date(completedAt)
-    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+  const getStatusBadge = (status: Child['status']) => {
+    switch(status) {
+      case 'linked':
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Linked</Badge>
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>
+      case 'invited':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Invited</Badge>
+      default:
+        return <Badge variant="outline">Unknown</Badge>
+    }
   }
 
   const formatDate = (dateString?: string) => {
@@ -370,372 +203,514 @@ export default function ParentDashboard() {
     return date.toLocaleDateString("en-US", { month: 'short', day: 'numeric' })
   }
 
-  const getStatusBadge = (status: Child['status']) => {
-    switch(status) {
-      case 'linked':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Linked</Badge>
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
-      case 'invited':
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Invited</Badge>
-      default:
-        return <Badge variant="outline">Unknown</Badge>
-    }
+  const formatTime = (completedAt?: string) => {
+    if (!completedAt) return "Pending"
+    const date = new Date(completedAt)
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
   }
+
+  const selectedChild = selectedChildId 
+    ? children.find(child => child.id === selectedChildId) 
+    : null
+
+  const childTasks = selectedChild
+    ? tasks.filter(task => task.grade_level === selectedChild.grade)
+    : tasks
 
   if (loading) {
     return (
       <DashboardLayout role="parent">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading parent dashboard...</p>
-          </div>
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <motion.div className="text-center space-y-4">
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto" style={{ color: brandColors.primary }} />
+            </div>
+            <div>
+              <p className="text-lg font-medium text-gray-900">Loading dashboard...</p>
+              <p className="text-sm text-gray-500 mt-2">Fetching your children's data</p>
+            </div>
+          </motion.div>
         </div>
       </DashboardLayout>
     )
   }
 
-  
+  if (error) {
+    return (
+      <DashboardLayout role="parent">
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <motion.div className="text-center max-w-md">
+            <div className="bg-red-50 rounded-full p-4 w-20 h-20 mx-auto mb-6">
+              <AlertCircle className="h-10 w-10 text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Unable to Load Data</h3>
+            <p className="text-gray-500 mb-6">{error}</p>
+            <Button onClick={refreshData} className="bg-green-500 hover:bg-green-600">
+              Try Again
+            </Button>
+          </motion.div>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout role="parent">
-    
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            
-            <p className="text-muted-foreground">Monitor your children's learning progress</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={refreshData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+      <div className="min-h-screen" style={{ background: brandColors.grayLight }}>
+        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${brandColors.primary}, ${brandColors.primaryLight})` }} />
+        
+        <div className="p-6 md:p-8 space-y-8">
+          {/* Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+          >
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-xl" style={{ background: brandColors.primaryBg }}>
+                  <Heart className="h-6 w-6" style={{ color: brandColors.primary }} />
+                </div>
+                <h1 className="text-3xl font-bold text-gray-900">Parent Dashboard</h1>
+              </div>
+              <p className="text-gray-500">Monitor your children's learning progress</p>
+            </div>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={refreshData}
+                className="gap-2 border-gray-200 hover:border-green-200 hover:bg-green-50 transition-all"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </motion.div>
+          </motion.div>
 
-        {/* Tabs Navigation */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
-            <TabsTrigger value="overview">
-             
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="children">
-              
-              My Children ({dashboardData.children.length})
-            </TabsTrigger>
-            <TabsTrigger value="activity">
-              
-              Activity
-            </TabsTrigger>
-          </TabsList>
-
-          {/* OVERVIEW TAB */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Children Summary Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>My Children</CardTitle>
-                <CardDescription>
-                  {dashboardData.stats.linkedChildren} linked • {dashboardData.stats.pendingChildren} pending
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {dashboardData.children.slice(0, 3).map((child) => (
-                    <Card 
-                      key={child.id}
-                      className={`cursor-pointer hover:border-primary transition-colors ${
-                        selectedChildId === child.id ? 'border-primary border-2' : ''
-                      }`}
-                      onClick={() => setSelectedChildId(child.id)}
+          {/* Tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+              <div className="border-b border-gray-200">
+                <TabsList className="bg-transparent h-auto p-0 space-x-8">
+                  {[
+                    { value: "overview", icon: Activity, label: "Overview" },
+                    { value: "children", icon: Users, label: "My Children" },
+                    { value: "activity", icon: Calendar, label: "Activity" }
+                  ].map((tab) => (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className="data-[state=active]:border-b-2 data-[state=active]:border-green-500 rounded-none bg-transparent px-4 py-3 text-gray-600 data-[state=active]:text-green-600 data-[state=active]:shadow-none gap-2"
                     >
-                      <CardContent className="pt-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center text-sm font-bold text-secondary">
-                                {child.name.split(" ").map((n) => n[0]).join("")}
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">{child.name}</h4>
-                                <div className="flex items-center gap-2">
-                                  {getStatusBadge(child.status)}
-                                  {child.grade > 0 && (
-                                    <span className="text-sm text-muted-foreground">Grade {child.grade}</span>
-                                  )}
+                      <tab.icon className="h-4 w-4" />
+                      {tab.label}
+                      {tab.value === "children" && (
+                        <Badge className="ml-2 bg-green-100 text-green-700" variant="secondary">
+                          {children.length}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-8">
+                {stats && (
+                  <>
+                    {/* Children Summary */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <Card className="border-none shadow-lg overflow-hidden">
+                        <CardHeader className="border-b border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-xl flex items-center gap-2">
+                                <Users className="h-5 w-5" style={{ color: brandColors.primary }} />
+                                My Children
+                              </CardTitle>
+                              <CardDescription>
+                                {stats.linkedChildren} linked • {stats.pendingChildren} pending
+                              </CardDescription>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setActiveTab("children")}
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              View All
+                              <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="grid md:grid-cols-3 gap-4">
+                            {children.slice(0, 3).map((child, index) => (
+                              <motion.div
+                                key={child.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                                whileHover={{ y: -4 }}
+                              >
+                                <Card 
+                                  className={`cursor-pointer transition-all duration-300 hover:shadow-xl ${
+                                    selectedChildId === child.id 
+                                      ? 'border-2 shadow-lg' 
+                                      : 'border border-gray-100 hover:border-green-200'
+                                  }`}
+                                  style={{ 
+                                    borderColor: selectedChildId === child.id ? brandColors.primary : undefined,
+                                    background: brandColors.white
+                                  }}
+                                  onClick={() => setSelectedChildId(child.id)}
+                                >
+                                  <CardContent className="p-4">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-3">
+                                          <div 
+                                            className="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                                            style={{ background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.primaryDark})` }}
+                                          >
+                                            {child.name.split(" ").map((n) => n[0]).join("")}
+                                          </div>
+                                          <div className="flex-1">
+                                            <h4 className="font-semibold text-gray-900">{child.name}</h4>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              {getStatusBadge(child.status)}
+                                              {child.grade > 0 && (
+                                                <span className="text-sm text-gray-500">Grade {child.grade}</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        {child.email && (
+                                          <p className="text-sm text-gray-500 truncate">{child.email}</p>
+                                        )}
+                                      </div>
+                                      <ChevronRight className="h-5 w-5 text-gray-400" />
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Stats Overview */}
+                    <div className="grid md:grid-cols-3 gap-6">
+                      {[
+                        { label: "Today's Progress", value: `${stats.todaysCompleted}/${stats.todaysTotal}`, subtext: `${selectedChild?.name || 'Your child'}'s completed tasks`, progress: stats.todaysProgress, gradient: "from-blue-500 to-blue-600", bgGradient: "from-blue-50 to-blue-100" },
+                        { label: "Weekly Streak", value: `${stats.weeklyStreak} Days`, subtext: "Consistent learning!", gradient: "from-purple-500 to-purple-600", bgGradient: "from-purple-50 to-purple-100" },
+                        { label: "Avg. Score", value: `${stats.avgScore}%`, subtext: "Great performance", gradient: "from-green-500 to-green-600", bgGradient: "from-green-50 to-green-100" }
+                      ].map((stat, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 + index * 0.1 }}
+                          whileHover={{ y: -4 }}
+                        >
+                          <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                            <div className={`bg-gradient-to-br ${stat.bgGradient} p-6`}>
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 mb-2">{stat.label}</p>
+                                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                                  <p className="text-xs text-gray-400 mt-2">{stat.subtext}</p>
+                                </div>
+                                <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`}>
+                                  {stat.label === "Today's Progress" ? <Target className="h-5 w-5 text-white" /> :
+                                   stat.label === "Weekly Streak" ? <Zap className="h-5 w-5 text-white" /> :
+                                   <Award className="h-5 w-5 text-white" />}
                                 </div>
                               </div>
+                              {stat.progress !== undefined && (
+                                <div className="mt-4">
+                                  <div className="h-2 w-full bg-white/50 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{ 
+                                        width: `${stat.progress}%`,
+                                        background: `linear-gradient(90deg, ${brandColors.primary}, ${brandColors.primaryDark})`
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            {child.email && (
-                              <p className="text-sm text-muted-foreground truncate">{child.email}</p>
-                            )}
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                {dashboardData.children.length > 3 && (
-                  <div className="mt-4 text-center">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setActiveTab("children")}
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Recent Activity */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
                     >
-                      View All {dashboardData.children.length} Children
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Stats Overview */}
-            {selectedChild && (
-              <>
-                <div className="grid md:grid-cols-3 gap-6">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardDescription>Today's Progress</CardDescription>
-                      <CardTitle className="text-3xl">
-                        {dashboardData.stats.todaysCompleted}/{dashboardData.stats.todaysTotal}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Progress value={dashboardData.stats.todaysProgress} className="h-2 mb-2" />
-                      <p className="text-sm text-muted-foreground">{selectedChild.name}'s completed tasks</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardDescription>Weekly Streak</CardDescription>
-                      <CardTitle className="text-3xl">{dashboardData.stats.weeklyStreak} Days</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center text-sm text-secondary">
-                        <TrendingUp className="h-4 w-4 mr-1" />
-                        Consistent learning!
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardDescription>Avg. Score</CardDescription>
-                      <CardTitle className="text-3xl">{dashboardData.stats.avgScore}%</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center text-sm text-secondary">
-                        <TrendingUp className="h-4 w-4 mr-1" />
-                        Great performance
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Recent Activity Preview */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Recent Activity</CardTitle>
-                        <CardDescription>{selectedChild.name}'s visible tasks</CardDescription>
-                      </div>
-                      <Badge variant="outline">
-                        {childTasks.length} visible tasks
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {childTasks.slice(0, 3).map((task) => (
-                      <div key={task.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                        <div className="flex items-center gap-4">
-                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                            <BookOpen className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold">{task.title}</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{task.subject}</span>
-                              <span>•</span>
-                              <span>{formatTime(task.completed_at)}</span>
+                      <Card className="border-none shadow-lg overflow-hidden">
+                        <CardHeader className="border-b border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-xl flex items-center gap-2">
+                                <Activity className="h-5 w-5" style={{ color: brandColors.primary }} />
+                                Recent Activity
+                              </CardTitle>
+                              <CardDescription>{selectedChild?.name || 'Your child'}'s recent tasks</CardDescription>
                             </div>
+                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+                              {childTasks.length} visible tasks
+                            </Badge>
                           </div>
-                        </div>
-                        {task.status === 'completed' && task.score !== undefined && (
-                          <Badge className="bg-secondary/20 text-secondary hover:bg-secondary/30">
-                            {task.score}%
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                    {childTasks.length > 3 && (
-                      <div className="text-center pt-2">
-                        <Button variant="ghost" size="sm" onClick={() => setActiveTab("activity")}>
-                          View All Activity
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* CHILDREN MANAGEMENT TAB */}
-          <TabsContent value="children" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>My Children</CardTitle>
-                    <CardDescription>
-                      Manage and monitor all your linked children
-                    </CardDescription>
-                  </div>
-                  <Button onClick={() => {/* Add new child functionality */}}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Child
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {dashboardData.children.map((child) => (
-                    <div key={child.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-secondary/20 flex items-center justify-center text-lg font-bold text-secondary">
-                          {child.name.split(" ").map((n) => n[0]).join("")}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <h4 className="font-semibold">{child.name}</h4>
-                            {getStatusBadge(child.status)}
-                          </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                            {child.email && <span>{child.email}</span>}
-                            {child.grade > 0 && (
-                              <>
-                                <span>•</span>
-                                <span>Grade {child.grade}</span>
-                              </>
-                            )}
-                            {child.status === 'linked' && child.linked_at && (
-                              <>
-                                <span>•</span>
-                                <span>Linked {formatDate(child.linked_at)}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {child.status === 'pending' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => sendInvitation(child.email!)}
-                          >
-                            <Mail className="h-4 w-4 mr-2" />
-                            Send Invite
-                          </Button>
-                        )}
-                       
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ACTIVITY TAB */}
-          <TabsContent value="activity" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>All Activity</CardTitle>
-                    <CardDescription>Tasks visible to parents across all children</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filter
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dashboardData.tasks.length === 0 ? (
-                  <div className="text-center py-8">
-                    <BookOpen className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-                    <p className="text-muted-foreground">No visible tasks yet.</p>
-                  </div>
-                ) : (
-                  dashboardData.tasks.map((task) => {
-                    const isCompleted = task.status === 'completed'
-                    const child = dashboardData.children.find(c => c.grade === task.grade_level)
-
-                    return (
-                      <div key={task.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                            <BookOpen className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-semibold">{task.title}</p>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{formatTime(task.completed_at)}</span>
-                              </div>
-                              <span>•</span>
-                              <span>Grade {task.grade_level}</span>
-                              {child && (
-                                <>
-                                  <span>•</span>
-                                  <span>{child.name}</span>
-                                </>
-                              )}
-                              {task.time_spent && task.time_spent > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span>{task.time_spent} min</span>
-                                </>
-                              )}
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          {childTasks.length === 0 ? (
+                            <div className="text-center py-8">
+                              <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                              <p className="text-gray-500">No tasks available</p>
                             </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {isCompleted && task.score !== undefined && (
-                            <div className="text-right">
-                              <p className="font-semibold text-secondary">{task.score}%</p>
-                              <p className="text-xs text-muted-foreground">Score</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {childTasks.slice(0, 3).map((task, index) => (
+                                <motion.div
+                                  key={task.id}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: index * 0.1 }}
+                                  className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300"
+                                  style={{ background: brandColors.white }}
+                                >
+                                  <div className="flex items-center gap-4 flex-1">
+                                    <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ background: brandColors.primaryBg }}>
+                                      <BookOpen className="h-6 w-6" style={{ color: brandColors.primary }} />
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900">{task.title}</p>
+                                      <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                        <span>{task.subject}</span>
+                                        <span>•</span>
+                                        <span>{formatTime(task.completed_at)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {task.status === 'completed' && task.score !== undefined && (
+                                    <div className="text-right">
+                                      <div className="flex items-center gap-1">
+                                        <Star className="h-4 w-4 text-yellow-500" />
+                                        <p className="font-semibold text-gray-900">{task.score}%</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <Badge className={task.status === 'completed' ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                                    {task.status === 'completed' ? "Completed" : "In Progress"}
+                                  </Badge>
+                                </motion.div>
+                              ))}
+                              {childTasks.length > 3 && (
+                                <div className="text-center pt-4">
+                                  <Button variant="ghost" size="sm" onClick={() => setActiveTab("activity")} className="text-green-600">
+                                    View All Activity
+                                    <ChevronRight className="h-4 w-4 ml-1" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           )}
-                          <Badge variant={isCompleted ? "secondary" : "outline"} className="gap-1">
-                            {isCompleted ? (
-                              <>
-                                <CheckCircle2 className="h-3 w-3" />
-                                Done
-                              </>
-                            ) : (
-                              "Not Started"
-                            )}
-                          </Badge>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </>
+                )}
+              </TabsContent>
+
+              {/* Children Tab */}
+              <TabsContent value="children" className="space-y-6">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="border-none shadow-lg overflow-hidden">
+                    <CardHeader className="border-b border-gray-100">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle className="text-xl flex items-center gap-2">
+                            <UserPlus className="h-5 w-5" style={{ color: brandColors.primary }} />
+                            My Children
+                          </CardTitle>
+                          <CardDescription>Manage and monitor all your linked children</CardDescription>
+                        </div>
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button className="gap-2" style={{ background: brandColors.primary }}>
+                            <UserPlus className="h-4 w-4" />
+                            Add Child
+                          </Button>
+                        </motion.div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {children.length === 0 ? (
+                        <div className="text-center py-12">
+                          <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No children added yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {children.map((child, index) => (
+                            <motion.div
+                              key={child.id}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              whileHover={{ scale: 1.01 }}
+                              className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300"
+                              style={{ background: brandColors.white }}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-xl"
+                                     style={{ background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.primaryDark})` }}>
+                                  {child.name.split(" ").map((n) => n[0]).join("")}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-3">
+                                    <h4 className="font-semibold text-gray-900 text-lg">{child.name}</h4>
+                                    {getStatusBadge(child.status)}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-sm text-gray-500 mt-2">
+                                    {child.email && <span>{child.email}</span>}
+                                    {child.grade > 0 && <span>Grade {child.grade}</span>}
+                                    {child.status === 'linked' && child.linked_at && (
+                                      <span>Linked {formatDate(child.linked_at)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {child.status === 'pending' && (
+                                  <Button size="sm" variant="outline" onClick={() => sendInvitation(child.email!)} className="gap-2">
+                                    <Mail className="h-4 w-4" />
+                                    Send Invite
+                                  </Button>
+                                )}
+                                {child.status === 'linked' && (
+                                  <Button size="sm" variant="ghost" onClick={() => setSelectedChildId(child.id)} className="text-green-600">
+                                    View Progress
+                                    <ChevronRight className="h-4 w-4 ml-1" />
+                                  </Button>
+                                )}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </TabsContent>
+
+              {/* Activity Tab */}
+              <TabsContent value="activity" className="space-y-6">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="border-none shadow-lg overflow-hidden">
+                    <CardHeader className="border-b border-gray-100">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle className="text-xl flex items-center gap-2">
+                            <Activity className="h-5 w-5" style={{ color: brandColors.primary }} />
+                            All Activity
+                          </CardTitle>
+                          <CardDescription>Tasks visible to parents across all children</CardDescription>
                         </div>
                       </div>
-                    )
-                  })
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {tasks.length === 0 ? (
+                        <div className="text-center py-12">
+                          <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No visible tasks yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {tasks.map((task, index) => (
+                            <motion.div
+                              key={task.id}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              whileHover={{ scale: 1.01 }}
+                              className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300"
+                              style={{ background: brandColors.white }}
+                            >
+                              <div className="flex items-center gap-4 flex-1">
+                                <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ background: brandColors.primaryBg }}>
+                                  <BookOpen className="h-6 w-6" style={{ color: brandColors.primary }} />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-semibold text-gray-900">{task.title}</p>
+                                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mt-1">
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      <span>{formatTime(task.completed_at)}</span>
+                                    </div>
+                                    <span>•</span>
+                                    <span>Grade {task.grade_level}</span>
+                                    <span>•</span>
+                                    <span>{task.subject}</span>
+                                    {task.time_spent && task.time_spent > 0 && (
+                                      <>
+                                        <span>•</span>
+                                        <span>{task.time_spent} min</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {task.status === 'completed' && task.score !== undefined && (
+                                <div className="text-right">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="h-4 w-4 text-yellow-500" />
+                                    <p className="font-semibold text-gray-900">{task.score}%</p>
+                                  </div>
+                                </div>
+                              )}
+                              <Badge className={task.status === 'completed' ? "bg-green-100 text-green-700 gap-1" : "bg-gray-100 text-gray-600"}>
+                                {task.status === 'completed' ? (
+                                  <>
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Completed
+                                  </>
+                                ) : (
+                                  "In Progress"
+                                )}
+                              </Badge>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </TabsContent>
+            </Tabs>
+          </motion.div>
+        </div>
       </div>
     </DashboardLayout>
   )

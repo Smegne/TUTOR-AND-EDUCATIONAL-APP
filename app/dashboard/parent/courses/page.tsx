@@ -434,23 +434,23 @@ export default function ParentCoursesPage() {
                     <div className="flex gap-4">
                       <div className="text-right">
                         <div className="text-sm text-muted-foreground">Overall Progress</div>
-                        <div className="text-3xl font-bold text-primary">
+                        {/* <div className="text-3xl font-bold text-primary">
                           {child.stats.overallCompletionRate}%
-                        </div>
+                        </div> */}
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-muted-foreground">Average Score</div>
-                        <div className={`text-3xl font-bold ${
+                        {/* <div className={`text-3xl font-bold ${
                           getPerformanceText(child.stats.averageScore).color
                         }`}>
                           {child.stats.averageScore}%
-                        </div>
+                        </div> */}
                       </div>
                     </div>
                   </div>
                   
                   {/* Child Stats Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+                  {/* <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
                     <div className="bg-white/50 rounded-lg p-3">
                       <div className="text-sm text-muted-foreground mb-1">Courses</div>
                       <div className="text-2xl font-bold">{child.stats.totalCourses}</div>
@@ -475,7 +475,7 @@ export default function ParentCoursesPage() {
                         {getPerformanceText(child.stats.averageScore).text}
                       </div>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Courses Grid */}
@@ -542,16 +542,10 @@ export default function ParentCoursesPage() {
 
                         <CardContent className="space-y-3">
                           {/* Progress Bar */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Completion Rate</span>
-                              <span className="font-medium">{course.completionRate}%</span>
-                            </div>
-                            <Progress value={course.completionRate} className="h-1.5" />
-                          </div>
+                         
 
                           {/* Tasks and Score Info */}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* <div className="grid grid-cols-2 gap-2 text-xs">
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <BookOpen className="h-3 w-3" />
                               <span>
@@ -567,7 +561,7 @@ export default function ParentCoursesPage() {
                                 </span>
                               </div>
                             )}
-                          </div>
+                          </div> */}
 
                           {/* Pending Tasks Badge */}
                           {pendingTasks > 0 && (
@@ -621,72 +615,7 @@ export default function ParentCoursesPage() {
                   })}
                 </div>
 
-                {/* Course Insights */}
-                {(child.stats.topPerformingCourse || child.stats.needsAttentionCourse) && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {/* Top Performing Course */}
-                    {child.stats.topPerformingCourse && (
-                      <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-transparent">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400 text-base">
-                            <Award className="h-4 w-4" />
-                            Top Performing Course
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-semibold">{child.stats.topPerformingCourse.name}</h3>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {child.stats.topPerformingCourse.code}
-                              </p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
-                                  Score: {child.stats.topPerformingCourse.avgScore}%
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  Progress: {child.stats.topPerformingCourse.completionRate}%
-                                </Badge>
-                              </div>
-                            </div>
-                            <Sparkles className="h-8 w-8 text-green-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Needs Attention Course */}
-                    {child.stats.needsAttentionCourse && child.stats.needsAttentionCourse.completionRate < 70 && (
-                      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/20 dark:to-transparent">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-base">
-                            <Target className="h-4 w-4" />
-                            Needs Attention
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-semibold">{child.stats.needsAttentionCourse.name}</h3>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {child.stats.needsAttentionCourse.code}
-                              </p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
-                                  Progress: {child.stats.needsAttentionCourse.completionRate}%
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  Pending: {child.stats.needsAttentionCourse.pendingTasks} tasks
-                                </Badge>
-                              </div>
-                            </div>
-                            <Brain className="h-8 w-8 text-orange-500" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                )}
+               
               </div>
             )
           })

@@ -1,4 +1,3 @@
-// app/dashboard/parent/tasks/page.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
@@ -6,31 +5,47 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { 
   Calendar, 
   FileText, 
   Loader2, 
   AlertCircle, 
-  Database, 
   RefreshCw, 
   Clock, 
   Award, 
   CheckCircle, 
-  AlertTriangle, 
   BookOpen,
   User,
-  Eye,
   EyeOff,
   Filter,
   Search,
   ChevronRight,
+  Sparkles,
+  Target,
   TrendingUp,
-  Users
+  Users,
+  Star,
+  Zap,
+  Heart,
+  GraduationCap
 } from "lucide-react"
 import { useAuth } from "@/lib/providers/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
+import { motion, AnimatePresence } from "framer-motion"
+
+// Brand colors configuration
+const brandColors = {
+  primary: "#10B981",
+  primaryDark: "#059669",
+  primaryLight: "#D1FAE5",
+  primaryBg: "#ECFDF5",
+  white: "#FFFFFF",
+  gray: "#6B7280",
+  grayLight: "#F9FAFB",
+  grayBorder: "#E5E7EB",
+}
 
 interface Task {
   id: string
@@ -87,20 +102,14 @@ export default function ParentTasksPage() {
   const [selectedChild, setSelectedChild] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   
-  // Get the parent ID from auth - using the same logic as student page
   const getParentId = useCallback(() => {
-    // Try to get from user object
     if ((user as any)?.lookupId) return (user as any).lookupId
     if ((user as any)?.userId) return (user as any).userId
     if ((user as any)?.parentId) return (user as any).parentId
     if (user?.id) return user.id
-    
-    // For ageru@gmail.com - hardcoded from your database
     if (user?.email === 'ageru@gmail.com') {
       return 'p_mm86u06x_974nf'
     }
-    
-    // Development fallback
     return 'p_mm86u06x_974nf'
   }, [user])
 
@@ -112,28 +121,17 @@ export default function ParentTasksPage() {
       setError(null)
       
       console.log("🎯 [PARENT] Fetching tasks for parent:", PARENT_ID)
-      console.log("👤 [PARENT] Auth user:", user)
       
-      // Use the same simple pattern as student page - direct endpoint
       const response = await fetch(`/api/parent-direct/${PARENT_ID}/tasks`)
-      
-      console.log("📊 [PARENT] API Response status:", response.status)
       
       if (response.ok) {
         const data = await response.json()
-        console.log("✅ [PARENT] API Response:", {
-          success: data.success,
-          tasksCount: data.tasks?.length,
-          childrenCount: data.children?.length
-        })
         
         if (data.success) {
-          // Set children
           if (data.children) {
             setChildren(data.children)
           }
           
-          // Set tasks
           const formattedTasks = data.tasks?.map((task: any) => ({
             ...task,
             status: task.status || 'pending',
@@ -145,21 +143,12 @@ export default function ParentTasksPage() {
           setUsingMockData(data.usingMockData || false)
           
           if (showToast && formattedTasks.length > 0) {
-            toast.success(`Loaded ${formattedTasks.length} tasks across ${data.children?.length || 0} children`)
-          } else if (showToast && formattedTasks.length === 0) {
-            toast.info("No tasks found for your children")
+            toast.success(`Loaded ${formattedTasks.length} tasks`)
           }
-          
-          console.log(`📋 [PARENT] Loaded ${formattedTasks.length} tasks:`, 
-            formattedTasks.map(t => `${t.title} (${t.student_name})`))
-            
         } else {
-          console.error("❌ [PARENT] API error:", data.error)
           throw new Error(data.error || 'Failed to fetch tasks')
         }
       } else {
-        const errorText = await response.text()
-        console.error("❌ [PARENT] HTTP error:", response.status, errorText)
         throw new Error(`Server error: ${response.status}`)
       }
     } catch (error) {
@@ -167,7 +156,6 @@ export default function ParentTasksPage() {
       setError(error instanceof Error ? error.message : 'Failed to load tasks')
       setUsingMockData(true)
       
-      // Fallback to mock data
       const mockData = getMockData()
       setTasks(mockData.tasks)
       setChildren(mockData.children)
@@ -176,7 +164,7 @@ export default function ParentTasksPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [PARENT_ID, user])
+  }, [PARENT_ID])
 
   useEffect(() => {
     fetchParentTasks(false)
@@ -206,7 +194,7 @@ export default function ParentTasksPage() {
         {
           id: "1",
           title: "Algebra Fundamentals",
-          description: "Practice basic algebraic equations",
+          description: "Practice basic algebraic equations and solve for x in linear equations",
           subject: "math_g8",
           grade_level: 8,
           difficulty: "medium",
@@ -226,7 +214,7 @@ export default function ParentTasksPage() {
         {
           id: "2",
           title: "Science Experiment Report",
-          description: "Document your findings from the chemistry lab",
+          description: "Document your findings from the chemistry lab experiment on chemical reactions",
           subject: "science_g8",
           grade_level: 8,
           difficulty: "hard",
@@ -244,7 +232,7 @@ export default function ParentTasksPage() {
         {
           id: "3",
           title: "Fractions and Decimals",
-          description: "Practice operations with fractions",
+          description: "Practice operations with fractions and decimal conversions",
           subject: "math_g7",
           grade_level: 7,
           difficulty: "beginner",
@@ -271,14 +259,10 @@ export default function ParentTasksPage() {
     fetchParentTasks()
   }
 
-  // Filter tasks based on selected child and search query
   const filteredTasks = tasks.filter(task => {
-    // Filter by child
     if (selectedChild !== 'all' && task.student_id !== selectedChild) {
       return false
     }
-    
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       return (
@@ -288,11 +272,9 @@ export default function ParentTasksPage() {
         task.subject.toLowerCase().includes(query)
       )
     }
-    
     return true
   })
 
-  // Group tasks by child
   const tasksByChild = filteredTasks.reduce((acc, task) => {
     if (!acc[task.student_id]) {
       acc[task.student_id] = {
@@ -305,7 +287,6 @@ export default function ParentTasksPage() {
     return acc
   }, {} as Record<string, { childName: string; childGrade: number; tasks: Task[] }>)
 
-  // Calculate summary statistics
   const summary = {
     totalChildren: children.length,
     totalTasks: tasks.length,
@@ -329,28 +310,35 @@ export default function ParentTasksPage() {
       'hpe': 'HPE',
       'it': 'IT'
     }
-
     const baseSubject = subject.replace(/_(g\d+|g\d+)$/, '').split('_')[0]
     return courseMap[baseSubject] || subject.replace('_', ' ').toUpperCase()
   }
 
   const getDifficultyColor = (difficulty: string): string => {
     switch (difficulty?.toLowerCase()) {
-      case 'beginner': return 'bg-green-100 text-green-800'
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800'
-      case 'advanced': return 'bg-red-100 text-red-800'
-      case 'hard': return 'bg-red-100 text-red-800'
-      case 'medium': return 'bg-yellow-100 text-yellow-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'beginner': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      case 'intermediate': return 'bg-amber-100 text-amber-800 border-amber-200'
+      case 'advanced': return 'bg-rose-100 text-rose-800 border-rose-200'
+      case 'hard': return 'bg-rose-100 text-rose-800 border-rose-200'
+      case 'medium': return 'bg-amber-100 text-amber-800 border-amber-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
 
   const getStatusColor = (status: string): string => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800'
-      case 'in_progress': return 'bg-blue-100 text-blue-800'
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200'
+      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return <CheckCircle className="h-3 w-3 mr-1" />
+      case 'in_progress': return <Clock className="h-3 w-3 mr-1" />
+      default: return <Clock className="h-3 w-3 mr-1" />
     }
   }
 
@@ -362,110 +350,137 @@ export default function ParentTasksPage() {
     }
   }
 
-  const TaskCard = ({ task }: { task: Task }) => {
+  const TaskCard = ({ task, index }: { task: Task; index: number }) => {
     const courseLabel = getCourseLabel(task.subject)
-
+    const isCompleted = task.status === 'completed'
+    
     return (
-      <Card className="hover:shadow-lg transition-all hover:border-primary/50">
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                {task.title}
-              </CardTitle>
-              <CardDescription>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="text-xs">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        whileHover={{ y: -4 }}
+      >
+        <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+          {/* Top accent bar based on status */}
+          <div 
+            className="h-1 w-full"
+            style={{ 
+              background: isCompleted 
+                ? `linear-gradient(90deg, ${brandColors.primary}, ${brandColors.primaryLight})`
+                : task.status === 'in_progress'
+                ? 'linear-gradient(90deg, #3B82F6, #93C5FD)'
+                : 'linear-gradient(90deg, #F59E0B, #FDE68A)'
+            }}
+          />
+          
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                     {courseLabel}
                   </Badge>
-                  <span>Grade {task.grade_level}</span>
-                  <span>•</span>
-                  <span className="text-xs text-primary font-medium">{task.student_name}</span>
+                  <Badge 
+                    variant="outline"
+                    className={`text-xs ${getDifficultyColor(task.difficulty)}`}
+                  >
+                    {task.difficulty}
+                  </Badge>
                 </div>
-              </CardDescription>
-            </div>
-            <Badge 
-              variant="outline"
-              className={getDifficultyColor(task.difficulty)}
-            >
-              {task.difficulty}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {task.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {task.description}
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={getStatusColor(task.status)}
-            >
-              {task.status === 'completed' ? (
-                <CheckCircle className="h-3 w-3 mr-1" />
-              ) : task.status === 'in_progress' ? (
-                <Clock className="h-3 w-3 mr-1" />
-              ) : (
-                <Clock className="h-3 w-3 mr-1" />
-              )}
-              {task.status === 'completed' ? 'Completed' : 
-               task.status === 'in_progress' ? 'In Progress' : 'Pending'}
-            </Badge>
-
-            {task.created_by_name && (
-              <span className="text-xs text-muted-foreground">
-                By {task.created_by_name}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>Assigned {formatDate(task.created_at)}</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>Est: {task.estimated_time_minutes} min</span>
-            {task.time_spent && task.time_spent > 0 && (
-              <>
-                <span>•</span>
-                <span>Spent: {task.time_spent} min</span>
-              </>
-            )}
-          </div>
-
-          {task.status === 'completed' && task.score !== undefined && (
-            <div className="bg-secondary/20 rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Award className="h-4 w-4 text-secondary" />
-                  <span className="text-sm text-muted-foreground">Score</span>
-                </div>
-                <span className="font-bold text-secondary text-lg">
-                  {task.score}%
-                </span>
+                <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                  {task.title}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <GraduationCap className="h-3 w-3" />
+                    <span>Grade {task.grade_level}</span>
+                    <span>•</span>
+                    <span className="text-green-600 font-medium">{task.student_name}</span>
+                  </div>
+                </CardDescription>
               </div>
-              {task.completed_at && (
-                <div className="flex items-center justify-between text-sm mt-2">
-                  <span className="text-muted-foreground">Completed</span>
-                  <span className="font-medium">{formatDate(task.completed_at)}</span>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-3 pt-0">
+            {task.description && (
+              <p className="text-sm text-gray-600 line-clamp-2">
+                {task.description}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Badge
+                variant="outline"
+                className={`${getStatusColor(task.status)} gap-1`}
+              >
+                {getStatusIcon(task.status)}
+                {task.status === 'completed' ? 'Completed' : 
+                 task.status === 'in_progress' ? 'In Progress' : 'Pending'}
+              </Badge>
+
+              {task.created_by_name && (
+                <span className="text-xs text-gray-400">
+                  By {task.created_by_name}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>{formatDate(task.created_at)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                <span>Est: {task.estimated_time_minutes} min</span>
+              </div>
+              {task.time_spent && task.time_spent > 0 && (
+                <div className="flex items-center gap-1">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>Spent: {task.time_spent} min</span>
                 </div>
               )}
             </div>
-          )}
 
-          {!task.parent_visibility && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 flex items-center gap-1">
-              <EyeOff className="h-3 w-3" />
-              Hidden from parent view
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {isCompleted && task.score !== undefined && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-green-100">
+                      <Award className="h-4 w-4 text-green-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Score</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-2xl text-green-600">
+                      {task.score}%
+                    </span>
+                  </div>
+                </div>
+                {task.completed_at && (
+                  <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t border-green-100">
+                    <span className="text-gray-500">Completed</span>
+                    <span className="font-medium text-gray-700">{formatDate(task.completed_at)}</span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {!task.parent_visibility && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 flex items-center gap-2">
+                <EyeOff className="h-3 w-3" />
+                Hidden from parent view
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     )
   }
 
@@ -473,221 +488,276 @@ export default function ParentTasksPage() {
     return (
       <DashboardLayout role="parent">
         <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-            <div>
-              <p className="text-lg font-medium">Loading your children's tasks...</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Parent ID: {PARENT_ID}
-              </p>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-4"
+          >
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto" style={{ color: brandColors.primary }} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full bg-white/20 animate-pulse" />
+              </div>
             </div>
-          </div>
+            <div>
+              <p className="text-lg font-medium text-gray-900">Loading tasks...</p>
+              <p className="text-sm text-gray-500 mt-2">Fetching your children's assignments</p>
+            </div>
+          </motion.div>
         </div>
       </DashboardLayout>
     )
   }
 
-  
   return (
     <DashboardLayout role="parent">
-     
-
-      <div className="p-6 md:p-8 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-balance">Children's Tasks</h1>
-            <p className="text-muted-foreground">
-              Monitor task completion and learning progress across all your children
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Parent ID: {PARENT_ID} • {children.length} child{children.length !== 1 ? 'ren' : ''}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-muted-foreground">
-              {tasks.length} total task{tasks.length !== 1 ? 's' : ''}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={refreshData}
-              className="gap-2"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-blue-700 mb-1">Total Tasks</div>
-                  <div className="text-2xl font-bold text-blue-900">{summary.totalTasks}</div>
+      <div className="min-h-screen" style={{ background: brandColors.grayLight, fontFamily: "'Roman Times New', sans-serif" }}>
+        {/* Top Gradient Bar */}
+        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${brandColors.primary}, ${brandColors.primaryLight})` }} />
+        
+        <div className="p-6 md:p-8 space-y-8">
+          {/* Header Section */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+          >
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-xl" style={{ background: brandColors.primaryBg }}>
+                  <Heart className="h-6 w-6" style={{ color: brandColors.primary }} />
                 </div>
-                <BookOpen className="h-8 w-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-green-50 border-green-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-green-700 mb-1">Completed</div>
-                  <div className="text-2xl font-bold text-green-900">{summary.completedTasks}</div>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-orange-50 border-orange-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-orange-700 mb-1">In Progress</div>
-                  <div className="text-2xl font-bold text-orange-900">{summary.inProgressTasks}</div>
-                </div>
-                <Clock className="h-8 w-8 text-orange-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-yellow-700 mb-1">Pending</div>
-                  <div className="text-2xl font-bold text-yellow-900">{summary.pendingTasks}</div>
-                </div>
-                <AlertCircle className="h-8 w-8 text-yellow-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-purple-50 border-purple-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-purple-700 mb-1">Avg. Score</div>
-                  <div className="text-2xl font-bold text-purple-900">
-                    {Math.round(summary.averageScore)}%
-                  </div>
-                </div>
-                <Award className="h-8 w-8 text-purple-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-md">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Filters:</span>
-              </div>
-              
-              <select 
-                className="border rounded-md px-3 py-2 text-sm"
-                value={selectedChild}
-                onChange={(e) => setSelectedChild(e.target.value)}
-              >
-                <option value="all">All Children</option>
-                {children.map(child => (
-                  <option key={child.id} value={child.id}>
-                    {child.name} (Grade {child.grade})
-                  </option>
-                ))}
-              </select>
-
-              
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tasks by Child */}
-        {Object.keys(tasksByChild).length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No tasks found</h3>
-              <p className="text-muted-foreground text-center mb-4">
-                {searchQuery || selectedChild !== 'all' 
-                  ? "No tasks match your filters. Try adjusting your search criteria."
-                  : "Your children don't have any visible tasks yet."}
-              </p>
-              {(searchQuery || selectedChild !== 'all') && (
-                <Button variant="outline" onClick={() => {
-                  setSelectedChild('all')
-                  setSearchQuery('')
-                }}>
-                  Clear Filters
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-8">
-            {Object.entries(tasksByChild).map(([childId, { childName, childGrade, tasks }]) => (
-              <div key={childId} className="space-y-4">
-                {/* Child Header */}
-                <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-lg">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-semibold">{childName}</h2>
-                    <p className="text-sm text-muted-foreground">Grade {childGrade}</p>
-                  </div>
-                  <Badge variant="outline" className="bg-primary/5">
-                    {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+                <h1 className="text-3xl font-bold text-gray-900">Children's Tasks</h1>
+                {usingMockData && (
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                    Demo Mode
                   </Badge>
-                </div>
-
-                {/* Tasks Grid for this Child */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))}
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Debug info in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 bg-black/90 text-white p-3 rounded-lg text-xs z-50 max-w-xs">
-            <div className="font-bold mb-1">Parent Debug:</div>
-            <div className="space-y-1">
-              <div>Parent ID: {PARENT_ID}</div>
-              <div>Children: {children.length}</div>
-              <div>Tasks: {tasks.length}</div>
-              <div>From DB: {usingMockData ? 'No (demo)' : 'Yes'}</div>
-              <div className="pt-1 border-t border-white/20">
-                <button 
-                  onClick={() => {
-                    console.log("All Tasks:", tasks)
-                    console.log("Children:", children)
-                    console.log("User:", user)
-                  }}
-                  className="text-blue-300 hover:text-blue-200 underline"
-                >
-                  Log Data
-                </button>
-              </div>
+              <p className="text-gray-500">
+                Monitor task completion and learning progress across all your children
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {children.length} child{children.length !== 1 ? 'ren' : ''} • {tasks.length} total tasks
+              </p>
             </div>
-          </div>
-        )}
+            
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={refreshData}
+                className="gap-2 border-gray-200 hover:border-green-200 hover:bg-green-50 transition-all"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </motion.div>
+          </motion.div>
+
+          {/* Summary Stats Cards */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-2 md:grid-cols-5 gap-4"
+          >
+            {[
+              { 
+                label: "Total Tasks", 
+                value: summary.totalTasks, 
+                icon: BookOpen, 
+                gradient: "from-blue-500 to-blue-600",
+                bgGradient: "from-blue-50 to-blue-100"
+              },
+              { 
+                label: "Completed", 
+                value: summary.completedTasks, 
+                icon: CheckCircle, 
+                gradient: "from-green-500 to-green-600",
+                bgGradient: "from-green-50 to-green-100"
+              },
+              { 
+                label: "In Progress", 
+                value: summary.inProgressTasks, 
+                icon: Clock, 
+                gradient: "from-orange-500 to-orange-600",
+                bgGradient: "from-orange-50 to-orange-100"
+              },
+              { 
+                label: "Pending", 
+                value: summary.pendingTasks, 
+                icon: AlertCircle, 
+                gradient: "from-amber-500 to-amber-600",
+                bgGradient: "from-amber-50 to-amber-100"
+              },
+              { 
+                label: "Avg. Score", 
+                value: `${Math.round(summary.averageScore)}%`, 
+                icon: Award, 
+                gradient: "from-purple-500 to-purple-600",
+                bgGradient: "from-purple-50 to-purple-100"
+              }
+            ].map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 + index * 0.05 }}
+                whileHover={{ y: -2 }}
+              >
+                <Card className="border-none shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
+                  <div className={`bg-gradient-to-br ${stat.bgGradient} p-4`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-medium text-gray-500 mb-1">{stat.label}</div>
+                        <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+                      </div>
+                      <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.gradient} shadow-md`}>
+                        <stat.icon className="h-4 w-4 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Filters Section */}
+          {/* <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-none shadow-lg overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-600">Filters:</span>
+                    </div>
+                    
+                    <div className="relative">
+                      <select 
+                        className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm pr-8 cursor-pointer hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        value={selectedChild}
+                        onChange={(e) => setSelectedChild(e.target.value)}
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                      >
+                        <option value="all">All Children</option>
+                        {children.map(child => (
+                          <option key={child.id} value={child.id}>
+                            {child.name} (Grade {child.grade})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Search tasks..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-4 py-2 w-64 border-gray-200 focus:border-green-300 focus:ring-green-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  {(searchQuery || selectedChild !== 'all') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedChild('all')
+                        setSearchQuery('')
+                      }}
+                      className="text-gray-500 hover:text-green-600"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </motion.div> */}
+
+          {/* Tasks by Child Section */}
+          <AnimatePresence mode="wait">
+            {Object.keys(tasksByChild).length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Card className="border-none shadow-lg">
+                  <CardContent className="flex flex-col items-center justify-center py-16">
+                    <div className="bg-green-50 rounded-full p-4 mb-4">
+                      <BookOpen className="h-12 w-12" style={{ color: brandColors.primary }} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks found</h3>
+                    <p className="text-gray-500 text-center max-w-md">
+                      {searchQuery || selectedChild !== 'all' 
+                        ? "No tasks match your filters. Try adjusting your search criteria."
+                        : "Your children don't have any visible tasks yet."}
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="tasks"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-8"
+              >
+                {Object.entries(tasksByChild).map(([childId, { childName, childGrade, tasks: childTaskList }]) => (
+                  <motion.div
+                    key={childId}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
+                    {/* Child Header */}
+                    <div 
+                      className="flex items-center gap-3 p-4 rounded-xl shadow-sm"
+                      style={{ background: brandColors.white }}
+                    >
+                      <div 
+                        className="h-12 w-12 rounded-full flex items-center justify-center shadow-md"
+                        style={{ background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.primaryDark})` }}
+                      >
+                        <User className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h2 className="text-xl font-semibold text-gray-900">{childName}</h2>
+                        <p className="text-sm text-gray-500">Grade {childGrade}</p>
+                      </div>
+                      <Badge 
+                        className="px-3 py-1 text-sm"
+                        style={{ background: brandColors.primaryBg, color: brandColors.primaryDark }}
+                      >
+                        {childTaskList.length} task{childTaskList.length !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+
+                    {/* Tasks Grid */}
+                    <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                      {childTaskList.map((task, idx) => (
+                        <TaskCard key={task.id} task={task} index={idx} />
+                      ))}
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </DashboardLayout>
   )
