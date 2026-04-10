@@ -306,44 +306,48 @@ export async function GET(
     })
 
     // 5. Return data
-    return NextResponse.json({
-      success: true,
-      usingMockData: false,
-      student: student ? {
-        id: student.id,
-        name: student.name || 'Student',
-        email: student.email || '',
-        grade: student.grade || 5,
-        courses: student.courses ? 
-          (typeof student.courses === 'string' ? 
-            (() => {
-              try { return JSON.parse(student.courses) } 
-              catch { return [] }
-            })() 
-            : student.courses) 
-          : [],
-        parentId: student.parent_id || null
-      } : null,
-      tasks: formattedTasks,
-      stats: {
-        totalTasks: formattedTasks.length,
-        pending: formattedTasks.filter(t => !t.completed_at).length,
-        completed: formattedTasks.filter(t => t.completed_at).length,
-        withQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length,
-        averageScore: formattedTasks.filter(t => t.score).length > 0
-          ? Math.round(formattedTasks.filter(t => t.score)
-              .reduce((sum, t) => sum + (t.score || 0), 0) / 
-              formattedTasks.filter(t => t.score).length)
-          : 0
-      },
-      debug: {
-        studentId: studentId,
-        foundStudentId: student?.id,
-        tasksCount: tasks.length,
-        formattedCount: formattedTasks.length,
-        tasksWithQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length
-      }
-    })
+   // 5. Return data
+return NextResponse.json({
+  success: true,
+  usingMockData: false,
+  student: student ? {
+    id: student.id,
+    name: student.name || 'Student',
+    email: student.email || '',
+    grade: student.grade || 5,
+    courses: student.courses ? 
+      (typeof student.courses === 'string' ? 
+        (() => {
+          try { return JSON.parse(student.courses) } 
+          catch { return [] }
+        })() 
+        : student.courses) 
+      : [],
+    parentId: student.parent_id || null
+  } : null,
+  tasks: formattedTasks,
+  stats: {
+    totalTasks: formattedTasks.length,
+    pending: formattedTasks.filter(t => !t.completed_at).length,
+    completed: formattedTasks.filter(t => t.completed_at).length,
+    withQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length,
+    // ⭐ FIX: Only include tasks with score > 0 in average calculation
+    // Tasks with score = 0 (short-answer only) should NOT affect the average
+    averageScore: (() => {
+      const tasksWithValidScores = formattedTasks.filter(t => (t.score || 0) > 0)
+      return tasksWithValidScores.length > 0
+        ? Math.round(tasksWithValidScores.reduce((sum, t) => sum + (t.score || 0), 0) / tasksWithValidScores.length)
+        : 0
+    })()
+  },
+  debug: {
+    studentId: studentId,
+    foundStudentId: student?.id,
+    tasksCount: tasks.length,
+    formattedCount: formattedTasks.length,
+    tasksWithQuestions: formattedTasks.filter(t => t.questions && t.questions.length > 0).length
+  }
+})
 
   } catch (error) {
     console.error('🚨 [STUDENT API] Error:', error)

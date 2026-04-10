@@ -447,7 +447,7 @@ export default function ParentStatusPage() {
           </motion.div>
 
           {/* Overall Stats Cards */}
-          {children.length > 0 && (
+          {/* {children.length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -507,7 +507,7 @@ export default function ParentStatusPage() {
                 </motion.div>
               ))}
             </motion.div>
-          )}
+          )} */}
 
           <AnimatePresence mode="wait">
             {filteredChildren.length === 0 ? (

@@ -538,7 +538,7 @@ export default function ParentTasksPage() {
                 Monitor task completion and learning progress across all your children
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {children.length} child{children.length !== 1 ? 'ren' : ''} • {tasks.length} total tasks
+                {children.length}  child{children.length !== 1 && 'ren'} linked
               </p>
             </div>
             
@@ -556,134 +556,7 @@ export default function ParentTasksPage() {
             </motion.div>
           </motion.div>
 
-          {/* Summary Stats Cards */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 md:grid-cols-5 gap-4"
-          >
-            {[
-              { 
-                label: "Total Tasks", 
-                value: summary.totalTasks, 
-                icon: BookOpen, 
-                gradient: "from-blue-500 to-blue-600",
-                bgGradient: "from-blue-50 to-blue-100"
-              },
-              { 
-                label: "Completed", 
-                value: summary.completedTasks, 
-                icon: CheckCircle, 
-                gradient: "from-green-500 to-green-600",
-                bgGradient: "from-green-50 to-green-100"
-              },
-              { 
-                label: "In Progress", 
-                value: summary.inProgressTasks, 
-                icon: Clock, 
-                gradient: "from-orange-500 to-orange-600",
-                bgGradient: "from-orange-50 to-orange-100"
-              },
-              { 
-                label: "Pending", 
-                value: summary.pendingTasks, 
-                icon: AlertCircle, 
-                gradient: "from-amber-500 to-amber-600",
-                bgGradient: "from-amber-50 to-amber-100"
-              },
-              { 
-                label: "Avg. Score", 
-                value: `${Math.round(summary.averageScore)}%`, 
-                icon: Award, 
-                gradient: "from-purple-500 to-purple-600",
-                bgGradient: "from-purple-50 to-purple-100"
-              }
-            ].map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 + index * 0.05 }}
-                whileHover={{ y: -2 }}
-              >
-                <Card className="border-none shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-                  <div className={`bg-gradient-to-br ${stat.bgGradient} p-4`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-medium text-gray-500 mb-1">{stat.label}</div>
-                        <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-                      </div>
-                      <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.gradient} shadow-md`}>
-                        <stat.icon className="h-4 w-4 text-white" />
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* Filters Section */}
-          {/* <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-none shadow-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex flex-wrap gap-4 items-center justify-between">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-600">Filters:</span>
-                    </div>
-                    
-                    <div className="relative">
-                      <select 
-                        className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm pr-8 cursor-pointer hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                        value={selectedChild}
-                        onChange={(e) => setSelectedChild(e.target.value)}
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
-                      >
-                        <option value="all">All Children</option>
-                        {children.map(child => (
-                          <option key={child.id} value={child.id}>
-                            {child.name} (Grade {child.grade})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder="Search tasks..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 pr-4 py-2 w-64 border-gray-200 focus:border-green-300 focus:ring-green-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  {(searchQuery || selectedChild !== 'all') && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => {
-                        setSelectedChild('all')
-                        setSearchQuery('')
-                      }}
-                      className="text-gray-500 hover:text-green-600"
-                    >
-                      Clear Filters
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </motion.div> */}
+         
 
           {/* Tasks by Child Section */}
           <AnimatePresence mode="wait">
@@ -736,13 +609,13 @@ export default function ParentTasksPage() {
                       </div>
                       <div className="flex-1">
                         <h2 className="text-xl font-semibold text-gray-900">{childName}</h2>
-                        <p className="text-sm text-gray-500">Grade {childGrade}</p>
+                        <p className="text-sm text-gray-500"> {childGrade}</p>
                       </div>
                       <Badge 
                         className="px-3 py-1 text-sm"
                         style={{ background: brandColors.primaryBg, color: brandColors.primaryDark }}
                       >
-                        {childTaskList.length} task{childTaskList.length !== 1 ? 's' : ''}
+                        
                       </Badge>
                     </div>
 

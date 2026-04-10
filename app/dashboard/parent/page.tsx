@@ -300,8 +300,8 @@ export default function ParentDashboard() {
                 <TabsList className="bg-transparent h-auto p-0 space-x-8">
                   {[
                     { value: "overview", icon: Activity, label: "Overview" },
-                    { value: "children", icon: Users, label: "My Children" },
-                    { value: "activity", icon: Calendar, label: "Activity" }
+                    { value: "children", icon: Users, label: "My Children" }
+                   
                   ].map((tab) => (
                     <TabsTrigger
                       key={tab.value}
@@ -622,92 +622,8 @@ export default function ParentDashboard() {
                 </motion.div>
               </TabsContent>
 
-              {/* Activity Tab */}
-              <TabsContent value="activity" className="space-y-6">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <Card className="border-none shadow-lg overflow-hidden">
-                    <CardHeader className="border-b border-gray-100">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <CardTitle className="text-xl flex items-center gap-2">
-                            <Activity className="h-5 w-5" style={{ color: brandColors.primary }} />
-                            All Activity
-                          </CardTitle>
-                          <CardDescription>Tasks visible to parents across all children</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      {tasks.length === 0 ? (
-                        <div className="text-center py-12">
-                          <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">No visible tasks yet</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {tasks.map((task, index) => (
-                            <motion.div
-                              key={task.id}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.05 }}
-                              whileHover={{ scale: 1.01 }}
-                              className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300"
-                              style={{ background: brandColors.white }}
-                            >
-                              <div className="flex items-center gap-4 flex-1">
-                                <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ background: brandColors.primaryBg }}>
-                                  <BookOpen className="h-6 w-6" style={{ color: brandColors.primary }} />
-                                </div>
-                                <div className="flex-1">
-                                  <p className="font-semibold text-gray-900">{task.title}</p>
-                                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mt-1">
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      <span>{formatTime(task.completed_at)}</span>
-                                    </div>
-                                    <span>•</span>
-                                    <span>Grade {task.grade_level}</span>
-                                    <span>•</span>
-                                    <span>{task.subject}</span>
-                                    {task.time_spent && task.time_spent > 0 && (
-                                      <>
-                                        <span>•</span>
-                                        <span>{task.time_spent} min</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              {task.status === 'completed' && task.score !== undefined && (
-                                <div className="text-right">
-                                  <div className="flex items-center gap-1">
-                                    <Star className="h-4 w-4 text-yellow-500" />
-                                    <p className="font-semibold text-gray-900">{task.score}%</p>
-                                  </div>
-                                </div>
-                              )}
-                              <Badge className={task.status === 'completed' ? "bg-green-100 text-green-700 gap-1" : "bg-gray-100 text-gray-600"}>
-                                {task.status === 'completed' ? (
-                                  <>
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Completed
-                                  </>
-                                ) : (
-                                  "In Progress"
-                                )}
-                              </Badge>
-                            </motion.div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </TabsContent>
+        
+              
             </Tabs>
           </motion.div>
         </div>
