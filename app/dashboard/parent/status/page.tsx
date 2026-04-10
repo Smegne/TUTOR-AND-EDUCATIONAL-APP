@@ -328,7 +328,7 @@ export default function ParentStatusPage() {
     if (streak >= 14) return { text: "🔥 Amazing streak!", color: "text-orange-600", icon: Flame }
     if (streak >= 7) return { text: "Great consistency!", color: "text-emerald-600", icon: Zap }
     if (streak >= 3) return { text: "Keep going!", color: "text-blue-600", icon: Target }
-    return { text: "Build your streak!", color: "text-gray-500", icon: Calendar }
+    return { text: "COMMING SOON...!", color: "text-gray-500", icon: Calendar }
   }
 
   const getDeviceIcon = (deviceInfo: string = "") => {
@@ -675,7 +675,7 @@ export default function ParentStatusPage() {
                             <CardContent>
                               <div className="flex items-center gap-1 text-sm text-gray-500">
                                 <Activity className="h-3 w-3" />
-                                <span>{child.sessions.totalSessions} sessions total</span>
+                                <span>{child.sessions.totalSessions} Comming soon when time scheduled...</span>
                               </div>
                             </CardContent>
                           </Card>

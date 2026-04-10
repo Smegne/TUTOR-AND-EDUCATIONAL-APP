@@ -411,7 +411,7 @@ export default function ParentDashboard() {
                     </motion.div>
 
                     {/* Stats Overview */}
-                    <div className="grid md:grid-cols-3 gap-6">
+                    {/* <div className="grid md:grid-cols-3 gap-6">
                       {[
                         { label: "Today's Progress", value: `${stats.todaysCompleted}/${stats.todaysTotal}`, subtext: `${selectedChild?.name || 'Your child'}'s completed tasks`, progress: stats.todaysProgress, gradient: "from-blue-500 to-blue-600", bgGradient: "from-blue-50 to-blue-100" },
                         { label: "Weekly Streak", value: `${stats.weeklyStreak} Days`, subtext: "Consistent learning!", gradient: "from-purple-500 to-purple-600", bgGradient: "from-purple-50 to-purple-100" },
@@ -455,10 +455,10 @@ export default function ParentDashboard() {
                           </Card>
                         </motion.div>
                       ))}
-                    </div>
+                    </div> */}
 
                     {/* Recent Activity */}
-                    <motion.div
+                    {/* <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5 }}
@@ -533,7 +533,7 @@ export default function ParentDashboard() {
                           )}
                         </CardContent>
                       </Card>
-                    </motion.div>
+                    </motion.div> */}
                   </>
                 )}
               </TabsContent>
